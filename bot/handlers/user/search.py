@@ -1,0 +1,140 @@
+from aiogram import Router, F, Bot
+from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from sqlalchemy.ext.asyncio import AsyncSession
+from bot.services.user_service import UserService
+from bot.services.movie_service import MovieService
+from bot.services.search_service import SearchService
+from bot.keyboards.user import (
+    search_results_kb, back_to_menu_kb, main_menu_kb,
+    movie_versions_kb, episode_select_kb, movie_actions_kb,
+)
+from bot.utils.i18n import _, get_movie_caption
+
+router = Router()
+
+
+class SearchState(StatesGroup):
+    waiting_query = State()
+
+
+@router.callback_query(F.data == "menu_search")
+async def start_search(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
+    user_svc = UserService(session)
+    user = await user_svc.get(cb.from_user.id)
+    lang = user.language if user else "uz"
+
+    await state.set_state(SearchState.waiting_query)
+    await state.update_data(lang=lang)
+    await cb.message.answer(_("search_prompt", lang), reply_markup=back_to_menu_kb(lang))
+    await cb.answer()
+
+
+@router.message(SearchState.waiting_query)
+async def process_search(message: Message, state: FSMContext, session: AsyncSession):
+    data = await state.get_data()
+    lang = data.get("lang", "uz")
+    query = message.text.strip()
+
+    movie_svc = MovieService(session)
+    search_svc = SearchService(session)
+
+    movies, search_type = await movie_svc.smart_search(query)
+    await search_svc.log_search(message.from_user.id, query, len(movies))
+
+    if not movies:
+        await message.answer(
+            _("search_not_found", lang),
+            reply_markup=search_results_kb([], lang),
+        )
+        await state.clear()
+        return
+
+    if len(movies) == 1 and search_type in ("code", "exact"):
+        # Direct open
+        movie = movies[0]
+        user_svc = UserService(session)
+        user = await user_svc.get(message.from_user.id)
+        is_saved = await movie_svc.is_saved(message.from_user.id, movie.id)
+        await movie_svc.increment_views(movie.id)
+
+        caption = get_movie_caption(movie, lang)
+        has_trailer = movie.trailer_type != "none"
+        active_versions = await movie_svc.get_active_versions(movie.id)
+
+        kb = movie_actions_kb(
+            movie_id=movie.id,
+            has_trailer=has_trailer,
+            has_versions=bool(active_versions),
+            is_saved=is_saved,
+            lang=lang,
+        )
+
+        if movie.poster_file_id:
+            await message.answer_photo(
+                photo=movie.poster_watermarked_file_id or movie.poster_file_id,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+        else:
+            await message.answer(caption, parse_mode="HTML", reply_markup=kb)
+
+        if movie.movie_type in ("serial", "anime") and movie.episodes:
+            await message.answer(
+                _("choose_episode", lang),
+                reply_markup=episode_select_kb(movie.episodes, lang),
+            )
+    else:
+        # Show list
+        prefix = _("search_results", lang) if search_type == "exact" else _("search_fuzzy_results", lang)
+        await message.answer(prefix, reply_markup=search_results_kb(movies, lang))
+
+    await state.clear()
+
+
+@router.callback_query(F.data.startswith("movie_open_"))
+async def open_movie_from_list(cb: CallbackQuery, session: AsyncSession):
+    movie_id = int(cb.data.split("_")[-1])
+    user_svc = UserService(session)
+    movie_svc = MovieService(session)
+
+    user = await user_svc.get(cb.from_user.id)
+    lang = user.language if user else "uz"
+    movie = await movie_svc.get_by_id(movie_id)
+
+    if not movie:
+        await cb.answer(_("movie_not_found", lang), show_alert=True)
+        return
+
+    is_saved = await movie_svc.is_saved(cb.from_user.id, movie.id)
+    await movie_svc.increment_views(movie.id)
+    caption = get_movie_caption(movie, lang)
+    has_trailer = movie.trailer_type != "none"
+    active_versions = await movie_svc.get_active_versions(movie.id)
+
+    kb = movie_actions_kb(
+        movie_id=movie.id,
+        has_trailer=has_trailer,
+        has_versions=bool(active_versions),
+        is_saved=is_saved,
+        lang=lang,
+    )
+
+    if movie.poster_file_id:
+        await cb.message.answer_photo(
+            photo=movie.poster_watermarked_file_id or movie.poster_file_id,
+            caption=caption,
+            parse_mode="HTML",
+            reply_markup=kb,
+        )
+    else:
+        await cb.message.answer(caption, parse_mode="HTML", reply_markup=kb)
+
+    if movie.movie_type in ("serial", "anime") and movie.episodes:
+        await cb.message.answer(
+            _("choose_episode", lang),
+            reply_markup=episode_select_kb(movie.episodes, lang),
+        )
+    await cb.answer()

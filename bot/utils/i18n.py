@@ -303,3 +303,24 @@ def get_movie_caption(movie, lang: str = "uz") -> str:
     lines.append(f"\n🔎 Kod: <code>{movie.code}</code>")
 
     return "\n".join(lines)
+
+
+def get_video_caption(movie, lang: str = "uz", bot_username: str = "", channel_username: str = "") -> str:
+    """Build caption for the video file message."""
+    title = getattr(movie, f"title_{lang}", None) or movie.title_original
+    description = getattr(movie, f"description_{lang}", None) or ""
+
+    lines = [f"🎬 <b>{title}</b>"]
+    if description:
+        # Short description for video caption
+        desc_label = "📝 Tavsif:" if lang == "uz" else "📝 Описание:" if lang == "ru" else "📝 Description:"
+        lines.append(f"\n{desc_label}\n{description[:250]}{'...' if len(description) > 250 else ''}")
+
+    lines.append(f"\n🤖 Bot: @{bot_username.strip('@')}")
+    if channel_username:
+        ch = channel_username.strip('@').split('/')[-1] # Handle full links
+        lines.append(f"📢 Kanalimiz: @{ch}")
+    
+    lines.append(f"🔎 Kod: <code>{movie.code}</code>")
+
+    return "\n".join(lines)

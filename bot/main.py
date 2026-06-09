@@ -33,15 +33,32 @@ from bot.handlers.inline.inline import router as inline_router
 
 async def on_startup():
     logging.info("Starting KinoBot...")
+    
+    # Create DB tables and enable extensions
+    from bot.database.session import engine
+    from sqlalchemy import text
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
     await create_tables()
-    logging.info("Database tables created.")
+    logging.info("Database tables created and extensions enabled.")
 
     # Set bot commands
-    from aiogram.types import BotCommand
-    await bot.set_my_commands([
+    from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats
+    
+    # Delete old commands first
+    await bot.delete_my_commands()
+    
+    commands = [
         BotCommand(command="start", description="Botni ishga tushirish"),
         BotCommand(command="admin", description="Admin panel"),
-    ])
+    ]
+    
+    # Set commands for private chats
+    await bot.set_my_commands(commands, scope=BotCommandScopeAllPrivateChats())
+    # Set default commands as well
+    await bot.set_my_commands(commands)
+    
+    logging.info("Bot commands updated successfully!")
     logging.info("Bot started successfully!")
 
 

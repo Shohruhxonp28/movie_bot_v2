@@ -1,5 +1,7 @@
+import io
 from aiogram import Router, F, Bot
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, BufferedInputFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.services.user_service import UserService
 from bot.services.movie_service import MovieService
@@ -174,7 +176,37 @@ async def _send_version(cb, version, user, lang, movie_id, session, bot):
         )
         return
 
-    await cb.message.answer_video(video=version.file_id)
+    movie = await movie_svc.get_by_id(movie_id)
+    from bot.utils.i18n import get_video_caption
+    from bot.config import settings
+    
+    caption = get_video_caption(
+        movie=movie,
+        lang=lang,
+        bot_username=settings.BOT_USERNAME,
+        channel_username=settings.PUBLIC_CHANNEL_USERNAME,
+    )
+
+    # Download poster for thumbnail
+    poster_id = movie.poster_watermarked_file_id or movie.poster_file_id
+    thumb = None
+    if poster_id:
+        try:
+            file_info = await bot.get_file(poster_id)
+            if file_info.file_path:
+                dest = io.BytesIO()
+                await bot.download_file(file_info.file_path, dest)
+                dest.seek(0)
+                thumb = BufferedInputFile(dest.read(), filename="thumb.jpg")
+        except Exception:
+            pass
+
+    await cb.message.answer_video(
+        video=version.file_id,
+        caption=caption,
+        thumbnail=thumb,
+        parse_mode="HTML",
+    )
     await user_svc.increment_downloads(user.id)
     await movie_svc.increment_version_downloads(version.id)
     await movie_svc.log_download(user.id, movie_id, version.id)
@@ -207,7 +239,50 @@ async def _send_episode_version(cb, version, user, lang, session):
         )
         return
 
-    await cb.message.answer_video(video=version.file_id)
+    # Get episode and movie
+    from bot.database.models import Episode, Movie
+    result = await session.execute(
+        select(Movie).join(Episode).where(Episode.id == version.episode_id)
+    )
+    movie = result.scalar_one_or_none()
+    
+    from bot.utils.i18n import get_video_caption
+    from bot.config import settings
+    
+    caption = get_video_caption(
+        movie=movie,
+        lang=lang,
+        bot_username=settings.BOT_USERNAME,
+        channel_username=settings.PUBLIC_CHANNEL_USERNAME,
+    )
+    # Add episode info to caption
+    res_ep = await session.execute(select(Episode).where(Episode.id == version.episode_id))
+    episode = res_ep.scalar_one_or_none()
+    if episode and movie:
+        ep_label = f" ({episode.episode_number}-qism)" if lang == "uz" else f" ({episode.episode_number} серия)"
+        caption = caption.replace(movie.title_original, f"{movie.title_original}{ep_label}")
+
+    # Download poster for thumbnail
+    poster_id = movie.poster_watermarked_file_id or movie.poster_file_id
+    thumb = None
+    if poster_id:
+        try:
+            bot = cb.bot
+            file_info = await bot.get_file(poster_id)
+            if file_info.file_path:
+                dest = io.BytesIO()
+                await bot.download_file(file_info.file_path, dest)
+                dest.seek(0)
+                thumb = BufferedInputFile(dest.read(), filename="thumb.jpg")
+        except Exception:
+            pass
+
+    await cb.message.answer_video(
+        video=version.file_id,
+        caption=caption,
+        thumbnail=thumb,
+        parse_mode="HTML",
+    )
     await user_svc.increment_downloads(user.id)
     await movie_svc.increment_episode_version_downloads(version.id)
 

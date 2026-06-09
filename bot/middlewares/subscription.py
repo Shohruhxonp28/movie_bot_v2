@@ -27,6 +27,12 @@ class SubscriptionMiddleware(BaseMiddleware):
         if not user:
             return await handler(event, data)
 
+        # Skip subscription check for group chats (e.g. admin group callbacks)
+        if isinstance(event, CallbackQuery) and event.message:
+            chat_type = event.message.chat.type
+            if chat_type in ("group", "supergroup"):
+                return await handler(event, data)
+
         # Skip subscription check for admins
         from bot.config import settings
         if user.id in settings.admin_ids_list:

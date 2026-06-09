@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     MAIN_CHANNEL_ID: str = ""
     MAIN_CHANNEL_USERNAME: str = ""
 
+    # Admin group for payment checks
+    ADMIN_GROUP_ID: str = ""
+    PAYMENT_CARD: str = ""
+    PAYMENT_NAME: str = ""
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 

@@ -1,22 +1,28 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    ReplyKeyboardMarkup, KeyboardButton,
+)
 from bot.utils.i18n import _
 
 
-def main_menu_kb(lang: str = "uz") -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text=_("btn_ai", lang), callback_data="menu_ai"),
-            InlineKeyboardButton(text=_("btn_search", lang), callback_data="menu_search"),
+def main_menu_kb(lang: str = "uz") -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=_("btn_ai", lang)),
+                KeyboardButton(text=_("btn_search", lang)),
+            ],
+            [
+                KeyboardButton(text=_("btn_referral", lang)),
+                KeyboardButton(text=_("btn_vip", lang)),
+            ],
+            [
+                KeyboardButton(text=_("btn_language", lang)),
+                KeyboardButton(text=_("btn_settings", lang)),
+            ],
         ],
-        [
-            InlineKeyboardButton(text=_("btn_referral", lang), callback_data="menu_referral"),
-            InlineKeyboardButton(text=_("btn_vip", lang), callback_data="menu_vip"),
-        ],
-        [
-            InlineKeyboardButton(text=_("btn_language", lang), callback_data="menu_language"),
-            InlineKeyboardButton(text=_("btn_settings", lang), callback_data="menu_settings"),
-        ],
-    ])
+        resize_keyboard=True,
+    )
 
 
 def language_select_kb() -> InlineKeyboardMarkup:

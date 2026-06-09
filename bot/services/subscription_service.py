@@ -8,6 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from bot.database.models import Channel
 from bot.utils.i18n import _
+from cachetools import TTLCache
+import time
+
+# Cache for subscription status: {user_id: (is_subscribed, timestamp)}
+# TTL: 120 seconds (2 minutes)
+sub_cache = TTLCache(maxsize=10000, ttl=120)
 
 
 class SubscriptionService:
@@ -22,7 +28,20 @@ class SubscriptionService:
         return result.scalars().all()
 
     async def get_unsubscribed_channels(self, user_id: int) -> List[Channel]:
+        # Check cache first
+        if user_id in sub_cache:
+            # If they were fully subscribed, return empty list
+            if sub_cache[user_id] is True:
+                return []
+            # Note: We only cache "True" (fully subscribed) to avoid blocking users
+            # if they subscribe and we still have them as "unsubscribed" in cache.
+            # But for "lag" issues, catching the "subscribed" state is most important.
+
         channels = await self.get_required_channels()
+        if not channels:
+            sub_cache[user_id] = True
+            return []
+
         not_subscribed = []
         for channel in channels:
             try:
@@ -33,7 +52,14 @@ class SubscriptionService:
                 if member.status in ("left", "kicked", "restricted"):
                     not_subscribed.append(channel)
             except Exception:
+                # If error (e.g. bot not admin), assume not subscribed or skip?
+                # For safety, we assume not subscribed if it's required
                 not_subscribed.append(channel)
+        
+        # Cache the result if they are fully subscribed
+        if not not_subscribed:
+            sub_cache[user_id] = True
+            
         return not_subscribed
 
     async def is_subscribed(self, user_id: int) -> bool:

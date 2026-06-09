@@ -14,10 +14,21 @@ class GeminiService:
 
     async def _generate(self, prompt: str) -> str:
         try:
+            # Use explicit model name from settings
+            model_name = settings.GEMINI_MODEL
+            # If model name doesn't start with models/, it might be better to add it or let SDK handle
+            # The SDK usually handles it, but let's be explicit if needed.
+            
             response = self.model.generate_content(prompt)
+            if not response:
+                logger.error("Gemini returned empty response")
+                return ""
             return response.text or ""
         except Exception as e:
-            logger.error(f"Gemini error: {e}")
+            logger.error(f"Gemini error ({settings.GEMINI_MODEL}): {e}")
+            # Log more details if available
+            if hasattr(e, 'details'):
+                logger.error(f"Gemini error details: {e.details}")
             return ""
 
     # ─── Movie Info ───────────────────────────────────────────────────────────

@@ -102,20 +102,20 @@ class MovieService:
     async def search_fuzzy(self, query: str, limit: int = 10) -> List[Movie]:
         """Fuzzy search using pg_trgm similarity."""
         sql = text("""
-            SELECT *
+            SELECT id
             FROM movies
             WHERE is_active = true
               AND (
-                similarity(COALESCE(title_original, ''), :q) > 0.15
-                OR similarity(COALESCE(title_uz, ''), :q) > 0.15
-                OR similarity(COALESCE(title_ru, ''), :q) > 0.15
-                OR similarity(COALESCE(title_en, ''), :q) > 0.15
+                similarity(COALESCE(title_original, ''), CAST(:q AS TEXT)) > 0.15
+                OR similarity(COALESCE(title_uz, ''), CAST(:q AS TEXT)) > 0.15
+                OR similarity(COALESCE(title_ru, ''), CAST(:q AS TEXT)) > 0.15
+                OR similarity(COALESCE(title_en, ''), CAST(:q AS TEXT)) > 0.15
               )
             ORDER BY GREATEST(
-                similarity(COALESCE(title_original, ''), :q),
-                similarity(COALESCE(title_uz, ''), :q),
-                similarity(COALESCE(title_ru, ''), :q),
-                similarity(COALESCE(title_en, ''), :q)
+                similarity(COALESCE(title_original, ''), CAST(:q AS TEXT)),
+                similarity(COALESCE(title_uz, ''), CAST(:q AS TEXT)),
+                similarity(COALESCE(title_ru, ''), CAST(:q AS TEXT)),
+                similarity(COALESCE(title_en, ''), CAST(:q AS TEXT))
             ) DESC
             LIMIT :limit
         """)

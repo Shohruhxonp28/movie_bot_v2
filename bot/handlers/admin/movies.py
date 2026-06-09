@@ -105,20 +105,112 @@ async def adm_movie_detail(cb: CallbackQuery, session: AsyncSession):
 
 @router.callback_query(F.data == "adm_add_movie")
 async def adm_add_movie(cb: CallbackQuery):
+    await cb.answer()
     await cb.message.edit_text(
         "➕ Kino qo'shish usulini tanlang:",
         reply_markup=admin_movie_add_method_kb(),
     )
+
+
+# ─── Manual Flow ──────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "adm_add_manual")
+async def adm_add_manual_start(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(AddMovieState.manual_title)
+    await cb.message.edit_text(
+        "📝 Kino nomini (original) kiriting:",
+        reply_markup=admin_back_kb(),
+    )
     await cb.answer()
+
+
+@router.message(AddMovieState.manual_title)
+async def adm_manual_title(message: Message, state: FSMContext):
+    await state.update_data(title_original=message.text.strip())
+    await state.set_state(AddMovieState.manual_type)
+    await message.answer(
+        "🎬 Kino turini tanlang:",
+        reply_markup=admin_movie_type_kb(),
+    )
+
+
+@router.callback_query(AddMovieState.manual_type, F.data.startswith("adm_type_"))
+async def adm_manual_type(cb: CallbackQuery, state: FSMContext):
+    m_type = cb.data.replace("adm_type_", "")
+    await state.update_data(movie_type=m_type)
+    await state.set_state(AddMovieState.manual_year)
+    await cb.message.edit_text("📅 Chiqarilgan yili (masalan: 2023):")
+    await cb.answer()
+
+
+@router.message(AddMovieState.manual_year)
+async def adm_manual_year(message: Message, state: FSMContext):
+    year_text = message.text.strip()
+    if not year_text.isdigit():
+        await message.answer("❌ Faqat raqam kiriting!")
+        return
+    await state.update_data(year=int(year_text))
+    await state.set_state(AddMovieState.manual_genre)
+    await message.answer("🎭 Janrlarini yozing (masalan: Drama, Triller):")
+
+
+@router.message(AddMovieState.manual_genre)
+async def adm_manual_genre(message: Message, state: FSMContext):
+    await state.update_data(genre=message.text.strip())
+    await state.set_state(AddMovieState.manual_imdb)
+    await message.answer("⭐ IMDb reytingini kiriting (masalan: 8.5):")
+
+
+@router.message(AddMovieState.manual_imdb)
+async def adm_manual_imdb(message: Message, state: FSMContext):
+    imdb_text = message.text.strip().replace(",", ".")
+    try:
+        imdb = float(imdb_text)
+    except ValueError:
+        await message.answer("❌ To'g'ri son kiriting!")
+        return
+    await state.update_data(imdb_rating=imdb)
+    await state.set_state(AddMovieState.manual_description)
+    await message.answer("📝 Kino haqida qisqacha tavsif (o'zbek tilida) yozing:")
+
+
+@router.message(AddMovieState.manual_description)
+async def adm_manual_description(message: Message, state: FSMContext, session: AsyncSession):
+    description = message.text.strip()
+    data = await state.get_data()
+    
+    code = generate_movie_code()
+    movie_data = {
+        "code": code,
+        "movie_type": data.get("movie_type", "film"),
+        "title_original": data.get("title_original"),
+        "title_uz": data.get("title_original"), # Temporary default
+        "description_uz": description,
+        "year": data.get("year"),
+        "genre": data.get("genre"),
+        "imdb_rating": data.get("imdb_rating"),
+    }
+
+    movie_svc = MovieService(session)
+    movie = await movie_svc.create_movie(movie_data)
+    
+    await state.update_data(movie_id=movie.id)
+    await state.set_state(AddMovieState.waiting_poster)
+    
+    await message.answer(
+        f"✅ Kino bazaga qo'shildi! Kod: <code>{code}</code>\n\n"
+        "🖼 Endi poster rasmini yuboring (yoki /skip):",
+        parse_mode="HTML",
+    )
 
 
 # ─── AI Flow ──────────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "adm_add_ai")
 async def adm_add_ai_start(cb: CallbackQuery, state: FSMContext):
+    await cb.answer()
     await state.set_state(AddMovieState.ai_waiting_name)
     await cb.message.answer("🤖 Kino nomini yozing (masalan: Interstellar):")
-    await cb.answer()
 
 
 @router.message(AddMovieState.ai_waiting_name)
@@ -286,7 +378,7 @@ async def adm_watermark_choice(cb: CallbackQuery, state: FSMContext, session: As
 # ─── Trailer ─────────────────────────────────────────────────────────────────
 
 @router.message(AddMovieState.waiting_trailer_type)
-async def adm_trailer_type(message: Message, state: FSMContext):
+async def adm_trailer_type(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
     text = message.text.strip().lower()
     if text == "/video":
         await state.update_data(trailer_type="video")
@@ -297,7 +389,7 @@ async def adm_trailer_type(message: Message, state: FSMContext):
         await state.set_state(AddMovieState.waiting_trailer)
         await message.answer("🔗 Treyler havolasini yuboring:")
     elif text == "/skip":
-        await _finalize_movie(message, state, session=None)
+        await _finalize_movie(message, state, session=session, bot=bot)
     else:
         await message.answer("/video, /url yoki /skip yozing.")
 
@@ -330,30 +422,47 @@ async def adm_trailer_url(message: Message, state: FSMContext, session: AsyncSes
     await _finalize_movie(message, state, session=session, bot=bot)
 
 
-async def _finalize_movie(message: Message, state: FSMContext, session=None, bot=None):
+async def _finalize_movie(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
     data = await state.get_data()
     movie_id = data.get("movie_id")
+    
+    if not movie_id:
+        await message.answer("❌ Xatolik: movie_id topilmadi.")
+        await state.clear()
+        return
 
-    if session and movie_id:
-        movie_svc = MovieService(session)
-        movie = await movie_svc.get_by_id(movie_id)
-        if movie and bot:
-            pub_svc = PublicChannelService(session, bot)
-            posted = await pub_svc.publish_trailer_to_public_channel(movie)
-            if not posted:
-                await message.answer(
-                    "✅ Kino saqlandi, lekin publik kanalga post yuborilmadi.\n"
-                    "Bot kanal admini ekanini tekshiring."
-                )
-            else:
-                await message.answer("✅ Kino saqlandi va publik kanalga post yuborildi!")
+    movie_svc = MovieService(session)
+    movie = await movie_svc.get_by_id(movie_id)
+    
+    # 1. Publish to channel if possible
+    if movie and bot:
+        pub_svc = PublicChannelService(session, bot)
+        posted = await pub_svc.publish_trailer_to_public_channel(movie)
+        if not posted:
+            await message.answer("⚠️ Kino saqlandi, lekin kanalga post yuborilmadi.")
         else:
-            await message.answer("✅ Kino muvaffaqiyatli saqlandi!")
+            await message.answer("📢 Kino saqlandi va kanalga post yuborildi!")
+    
+    # 2. Transition to adding video file or episodes
+    from bot.handlers.admin.versions import AddVersionState, AddEpisodeState
+    
+    if movie.movie_type in ("film", "multfilm"):
+        await state.set_state(AddVersionState.waiting_video)
+        await state.update_data(movie_id=movie_id)
+        await message.answer(
+            "🎬 <b>Kino muvaffaqiyatli saqlandi!</b>\n\n"
+            "📹 Endi asosiy videoni (film faylini) yuboring:",
+            parse_mode="HTML"
+        )
     else:
-        await message.answer("✅ Kino saqlandi!")
-
-    await state.clear()
-    await message.answer("Admin panel:", reply_markup=admin_main_kb())
+        # Serial / Anime
+        await state.set_state(AddEpisodeState.waiting_episode_number)
+        await state.update_data(movie_id=movie_id)
+        await message.answer(
+            "📺 <b>Serial/Anime saqlandi!</b>\n\n"
+            "🔢 Endi birinchi qism raqamini kiriting:",
+            parse_mode="HTML"
+        )
 
 
 # ─── Repost to channel ───────────────────────────────────────────────────────

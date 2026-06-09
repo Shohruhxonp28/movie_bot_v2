@@ -19,7 +19,7 @@ class AIState(StatesGroup):
 
 
 @router.callback_query(F.data == "menu_ai")
-async def start_ai(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
+async def start_ai_cb(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
     user_svc = UserService(session)
     user = await user_svc.get(cb.from_user.id)
     lang = user.language if user else "uz"
@@ -28,6 +28,19 @@ async def start_ai(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
     await state.update_data(lang=lang)
     await cb.message.answer(_("ai_prompt", lang), reply_markup=back_to_menu_kb(lang))
     await cb.answer()
+
+
+@router.message(F.text.in_([
+    "🤖 AI tavsiya", "🤖 AI рекомендация", "🤖 AI recommendation"
+]))
+async def start_ai_msg(message: Message, state: FSMContext, session: AsyncSession):
+    user_svc = UserService(session)
+    user = await user_svc.get(message.from_user.id)
+    lang = user.language if user else "uz"
+
+    await state.set_state(AIState.waiting_query)
+    await state.update_data(lang=lang)
+    await message.answer(_("ai_prompt", lang), reply_markup=back_to_menu_kb(lang))
 
 
 @router.message(AIState.waiting_query)

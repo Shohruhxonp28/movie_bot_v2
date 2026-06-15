@@ -309,15 +309,9 @@ async def adm_cancel(cb: CallbackQuery, state: FSMContext):
 
 @router.message(AddMovieState.waiting_poster, F.photo)
 async def adm_poster_received(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
-    data = await state.get_data()
-    movie_id = data.get("movie_id")
-
     photo: PhotoSize = message.photo[-1]
-    file = await bot.get_file(photo.file_id)
-    file_bytes = await bot.download_file(file.file_path)
-    raw = file_bytes.read()
-
-    await state.update_data(raw_poster=raw, poster_file_id=photo.file_id)
+    
+    await state.update_data(poster_file_id=photo.file_id)
     await state.set_state(AddMovieState.waiting_watermark)
     await message.answer(
         "💧 Posterga bot username qo'shilsinmi?",
@@ -340,7 +334,6 @@ async def adm_poster_skip(message: Message, state: FSMContext):
 async def adm_watermark_choice(cb: CallbackQuery, state: FSMContext, session: AsyncSession, bot: Bot):
     data = await state.get_data()
     movie_id = data.get("movie_id")
-    raw_poster = data.get("raw_poster")
     poster_file_id = data.get("poster_file_id")
 
     movie_svc = MovieService(session)
@@ -351,7 +344,11 @@ async def adm_watermark_choice(cb: CallbackQuery, state: FSMContext, session: As
 
     update_data = {"poster_file_id": poster_file_id}
 
-    if cb.data == "adm_wm_yes" and raw_poster:
+    if cb.data == "adm_wm_yes" and poster_file_id:
+        file = await bot.get_file(poster_file_id)
+        file_bytes = await bot.download_file(file.file_path)
+        raw_poster = file_bytes.read()
+        
         poster_svc = PosterService()
         watermarked = poster_svc.add_watermark(raw_poster, movie_code=movie.code)
         # Upload watermarked photo

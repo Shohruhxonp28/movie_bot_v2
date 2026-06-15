@@ -179,7 +179,8 @@ async def adm_manual_description(message: Message, state: FSMContext, session: A
     description = message.text.strip()
     data = await state.get_data()
     
-    code = generate_movie_code()
+    movie_svc = MovieService(session)
+    code = await movie_svc.get_next_movie_code()
     movie_data = {
         "code": code,
         "movie_type": data.get("movie_type", "film"),
@@ -191,7 +192,6 @@ async def adm_manual_description(message: Message, state: FSMContext, session: A
         "imdb_rating": data.get("imdb_rating"),
     }
 
-    movie_svc = MovieService(session)
     movie = await movie_svc.create_movie(movie_data)
     
     await state.update_data(movie_id=movie.id)
@@ -245,7 +245,7 @@ async def adm_ai_process(message: Message, state: FSMContext, session: AsyncSess
         f"🌍 Davlat: {data.get('country', '?')}\n"
         f"⏱ Davomiyligi: {data.get('duration', '?')} min\n"
         f"🔞 Yosh chegarasi: {data.get('age_limit', '?')}\n\n"
-        f"📝 Tavsif:\n{data.get('description_uz', '?')[:200]}..."
+        f"📝 Tavsif:\n{data.get('description_uz', '?')}"
     )
     await message.answer(preview, parse_mode="HTML", reply_markup=admin_movie_confirm_kb(temp_id))
 
@@ -259,7 +259,8 @@ async def adm_confirm_movie(cb: CallbackQuery, state: FSMContext, session: Async
         await cb.answer("Ma'lumot topilmadi", show_alert=True)
         return
 
-    code = generate_movie_code()
+    movie_svc = MovieService(session)
+    code = await movie_svc.get_next_movie_code()
     movie_data = {
         "code": code,
         "movie_type": data.get("movie_type", "film"),
@@ -283,7 +284,6 @@ async def adm_confirm_movie(cb: CallbackQuery, state: FSMContext, session: Async
         "keywords": data.get("keywords"),
     }
 
-    movie_svc = MovieService(session)
     movie = await movie_svc.create_movie(movie_data)
     del _temp_movies[temp_id]
 

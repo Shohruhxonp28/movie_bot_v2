@@ -223,6 +223,15 @@ class MovieService:
 
     # ─── Admin: Create / Update ───────────────────────────────────────────────
 
+    async def get_next_movie_code(self) -> str:
+        result = await self.session.execute(select(Movie.code))
+        codes = result.scalars().all()
+        used_codes = {int(c) for c in codes if c.isdigit()}
+        code = 10
+        while code in used_codes:
+            code += 1
+        return str(code)
+
     async def create_movie(self, data: dict) -> Movie:
         movie = Movie(**data)
         self.session.add(movie)

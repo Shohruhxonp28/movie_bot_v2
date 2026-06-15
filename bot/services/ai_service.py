@@ -13,23 +13,27 @@ class GeminiService:
         self.model = genai.GenerativeModel(settings.GEMINI_MODEL)
 
     async def _generate(self, prompt: str) -> str:
-        try:
-            # Use explicit model name from settings
-            model_name = settings.GEMINI_MODEL
-            # If model name doesn't start with models/, it might be better to add it or let SDK handle
-            # The SDK usually handles it, but let's be explicit if needed.
-            
-            response = self.model.generate_content(prompt)
-            if not response:
-                logger.error("Gemini returned empty response")
+        import asyncio
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Use generate_content_async for non-blocking IO in aiogram
+                response = await self.model.generate_content_async(prompt)
+                if not response:
+                    logger.error("Gemini returned empty response")
+                    return ""
+                return response.text or ""
+            except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg and attempt < max_retries - 1:
+                    logger.warning(f"AI Quota Exceeded. Kutib turib qayta urinish (Urinish: {attempt + 1})...")
+                    await asyncio.sleep(21)
+                    continue
+                
+                logger.error(f"Gemini error ({settings.GEMINI_MODEL}): {e}")
+                if hasattr(e, 'details'):
+                    logger.error(f"Gemini error details: {e.details}")
                 return ""
-            return response.text or ""
-        except Exception as e:
-            logger.error(f"Gemini error ({settings.GEMINI_MODEL}): {e}")
-            # Log more details if available
-            if hasattr(e, 'details'):
-                logger.error(f"Gemini error details: {e.details}")
-            return ""
 
     # ─── Movie Info ───────────────────────────────────────────────────────────
 

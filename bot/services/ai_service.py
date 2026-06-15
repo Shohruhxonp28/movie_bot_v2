@@ -197,8 +197,9 @@ Aktyorlar: {movie_info.get('actors')}
     async def generate_caption(self, movie_info: Dict, lang: str = "uz") -> str:
         """Generate short attractive caption for a movie."""
         lang_map = {"uz": "o'zbek", "ru": "ruscha", "en": "inglizcha"}
+        lang_name = lang_map.get(lang, "o'zbek")
         prompt = f"""
-Quyidagi kino uchun {lang_map.get(lang, 'o\'zbek')} tilida qisqa va jalb qiluvchi tavsif yoz (1-2 jumla):
+Quyidagi kino uchun {lang_name} tilida qisqa va jalb qiluvchi tavsif yoz (1-2 jumla):
 
 Kino: {movie_info.get('title_original')}
 Janr: {movie_info.get('genre')}

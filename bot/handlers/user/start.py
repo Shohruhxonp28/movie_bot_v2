@@ -164,15 +164,35 @@ async def deliver_movie(
         lang=lang,
     )
 
-    if movie.poster_file_id:
-        await message.answer_photo(
-            photo=movie.poster_watermarked_file_id or movie.poster_file_id,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=kb,
-        )
+    from bot.config import settings
+    if movie.public_post_message_id and settings.PUBLIC_CHANNEL_ID:
+        try:
+            await bot.copy_message(
+                chat_id=message.chat.id,
+                from_chat_id=settings.PUBLIC_CHANNEL_ID,
+                message_id=movie.public_post_message_id,
+                reply_markup=kb,
+            )
+        except Exception:
+            if movie.poster_file_id:
+                await message.answer_photo(
+                    photo=movie.poster_watermarked_file_id or movie.poster_file_id,
+                    caption=caption,
+                    parse_mode="HTML",
+                    reply_markup=kb,
+                )
+            else:
+                await message.answer(caption, parse_mode="HTML", reply_markup=kb)
     else:
-        await message.answer(caption, parse_mode="HTML", reply_markup=kb)
+        if movie.poster_file_id:
+            await message.answer_photo(
+                photo=movie.poster_watermarked_file_id or movie.poster_file_id,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+        else:
+            await message.answer(caption, parse_mode="HTML", reply_markup=kb)
 
     # If serial/anime — show episode buttons
     if movie.movie_type in ("serial", "anime") and movie.episodes:

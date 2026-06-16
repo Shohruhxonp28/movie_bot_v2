@@ -45,7 +45,7 @@ async def start_search_msg(message: Message, state: FSMContext, session: AsyncSe
 
 
 @router.message(SearchState.waiting_query)
-async def process_search(message: Message, state: FSMContext, session: AsyncSession):
+async def process_search(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
     data = await state.get_data()
     lang = data.get("lang", "uz")
     query = message.text.strip()
@@ -69,36 +69,9 @@ async def process_search(message: Message, state: FSMContext, session: AsyncSess
         movie = movies[0]
         user_svc = UserService(session)
         user = await user_svc.get(message.from_user.id)
-        is_saved = await movie_svc.is_saved(message.from_user.id, movie.id)
-        await movie_svc.increment_views(movie.id)
 
-        caption = get_movie_caption(movie, lang)
-        has_trailer = movie.trailer_type != "none"
-        active_versions = await movie_svc.get_active_versions(movie.id)
-
-        kb = movie_actions_kb(
-            movie_id=movie.id,
-            has_trailer=has_trailer,
-            has_versions=bool(active_versions),
-            is_saved=is_saved,
-            lang=lang,
-        )
-
-        if movie.poster_file_id:
-            await message.answer_photo(
-                photo=movie.poster_watermarked_file_id or movie.poster_file_id,
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=kb,
-            )
-        else:
-            await message.answer(caption, parse_mode="HTML", reply_markup=kb)
-
-        if movie.movie_type in ("serial", "anime") and movie.episodes:
-            await message.answer(
-                _("choose_episode", lang),
-                reply_markup=episode_select_kb(movie.episodes, lang),
-            )
+        from bot.handlers.user.start import deliver_movie
+        await deliver_movie(message, movie, user, lang, session, bot)
     else:
         # Show list
         prefix = _("search_results", lang) if search_type == "exact" else _("search_fuzzy_results", lang)
@@ -108,7 +81,7 @@ async def process_search(message: Message, state: FSMContext, session: AsyncSess
 
 
 @router.callback_query(F.data.startswith("movie_open_"))
-async def open_movie_from_list(cb: CallbackQuery, session: AsyncSession):
+async def open_movie_from_list(cb: CallbackQuery, session: AsyncSession, bot: Bot):
     movie_id = int(cb.data.split("_")[-1])
     user_svc = UserService(session)
     movie_svc = MovieService(session)
@@ -121,33 +94,6 @@ async def open_movie_from_list(cb: CallbackQuery, session: AsyncSession):
         await cb.answer(_("movie_not_found", lang), show_alert=True)
         return
 
-    is_saved = await movie_svc.is_saved(cb.from_user.id, movie.id)
-    await movie_svc.increment_views(movie.id)
-    caption = get_movie_caption(movie, lang)
-    has_trailer = movie.trailer_type != "none"
-    active_versions = await movie_svc.get_active_versions(movie.id)
-
-    kb = movie_actions_kb(
-        movie_id=movie.id,
-        has_trailer=has_trailer,
-        has_versions=bool(active_versions),
-        is_saved=is_saved,
-        lang=lang,
-    )
-
-    if movie.poster_file_id:
-        await cb.message.answer_photo(
-            photo=movie.poster_watermarked_file_id or movie.poster_file_id,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=kb,
-        )
-    else:
-        await cb.message.answer(caption, parse_mode="HTML", reply_markup=kb)
-
-    if movie.movie_type in ("serial", "anime") and movie.episodes:
-        await cb.message.answer(
-            _("choose_episode", lang),
-            reply_markup=episode_select_kb(movie.episodes, lang),
-        )
+    from bot.handlers.user.start import deliver_movie
+    await deliver_movie(cb.message, movie, user, lang, session, bot)
     await cb.answer()

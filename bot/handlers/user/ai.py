@@ -1,3 +1,4 @@
+import re
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -72,6 +73,10 @@ async def process_ai_query(message: Message, state: FSMContext, session: AsyncSe
     # Determine if user is looking for recommendations or finding a specific movie
     ai_response = await gemini.recommend_movies(query, movies_data, lang)
 
+    # Extract recommended movie codes
+    codes = set(re.findall(r'\[([\w-]+)\]', ai_response))
+    recommended_movies = [m for m in movies if str(m.code) in codes]
+
     await thinking.delete()
-    await message.answer(ai_response, reply_markup=ai_result_kb(lang))
+    await message.answer(ai_response, reply_markup=ai_result_kb(lang, movies=recommended_movies))
     await state.clear()

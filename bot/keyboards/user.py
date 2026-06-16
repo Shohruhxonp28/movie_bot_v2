@@ -141,8 +141,15 @@ def vip_required_kb(lang: str = "uz") -> InlineKeyboardMarkup:
     ])
 
 
-def ai_result_kb(lang: str = "uz") -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=_("btn_search", lang), callback_data="menu_search")],
-        [InlineKeyboardButton(text=_("btn_menu", lang), callback_data="go_main_menu")],
-    ])
+def ai_result_kb(lang: str = "uz", movies=None) -> InlineKeyboardMarkup:
+    buttons = []
+    if movies:
+        for m in movies:
+            title = getattr(m, f"title_{lang}", None) or getattr(m, "title_original", None) or f"Kino {m.code}"
+            buttons.append([InlineKeyboardButton(
+                text=f"🎬 {title}",
+                callback_data=f"movie_open_{m.id}"
+            )])
+    buttons.append([InlineKeyboardButton(text=_("btn_search", lang), callback_data="menu_search")])
+    buttons.append([InlineKeyboardButton(text=_("btn_menu", lang), callback_data="go_main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

@@ -39,8 +39,15 @@ async def on_startup():
     from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+        # Manually add missing columns if they don't exist
+        try:
+            await conn.execute(text("ALTER TABLE movie_versions ADD COLUMN IF NOT EXISTS database_message_id BIGINT;"))
+            await conn.execute(text("ALTER TABLE episode_versions ADD COLUMN IF NOT EXISTS database_message_id BIGINT;"))
+        except Exception as e:
+            logging.warning(f"Note: Table update error (might already exist): {e}")
+            
     await create_tables()
-    logging.info("Database tables created and extensions enabled.")
+    logging.info("Database tables updated and extensions enabled.")
 
     # Set bot commands
     from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats

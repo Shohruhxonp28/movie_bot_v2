@@ -37,18 +37,18 @@ class GeminiService:
 
     # ─── Movie Info ───────────────────────────────────────────────────────────
 
-    async def get_movie_info(self, movie_name: str) -> Optional[Dict]:
-        """Generate movie info JSON for admin movie creation."""
+    async def get_movie_info(self, text_input: str) -> Optional[Dict]:
+        """Extract movie info JSON from a text description (cluttered caption)."""
         prompt = f"""
-Sen kino bazasi mutaxassisisan. Quyidagi kino haqida to'liq JSON ma'lumot ber:
+Sen kino bazasi mutaxassisisan. Quyidagi matndan (bu telegram kanaldan olingan tavsif bo'lishi mumkin) kino haqida JSON ma'lumotlarni chiqarib ber:
 
-Kino: "{movie_name}"
+Matn: "{text_input}"
 
 FAQAT quyidagi JSON formatda javob ber, boshqa hech narsa yozma:
 {{
     "title_original": "Asl nomi",
-    "title_uz": "O'zbek nomiga tarjimasi yoki transliteratsiya",
-    "title_ru": "Ruscha nomiga tarjimasi",
+    "title_uz": "O'zbekcha nomi (topilmasa asl nomini yoz)",
+    "title_ru": "Ruscha nomi",
     "title_en": "Inglizcha nomi",
     "description_uz": "O'zbek tilida 2-3 jumlali tavsif",
     "description_ru": "Ruscha 2-3 jumlali tavsif",
@@ -56,23 +56,32 @@ FAQAT quyidagi JSON formatda javob ber, boshqa hech narsa yozma:
     "short_caption_uz": "O'zbek tilida 1 jumlali qisqa tavsif",
     "short_caption_ru": "Ruscha 1 jumlali qisqa tavsif",
     "short_caption_en": "English 1 sentence caption",
-    "genre": "Janrlar vergul bilan, masalan: Drama, Triller",
+    "genre": "Janrlar, masalan: Drama, Triller",
     "year": 2023,
-    "country": "AQSh",
-    "actors": "Asosiy aktyorlar vergul bilan",
+    "country": "Davlat",
+    "actors": "Aktyorlar",
     "imdb_rating": 8.5,
-    "duration": 148,
+    "duration": 120,
     "age_limit": "16+",
-    "keywords": "kalit so'zlar vergul bilan, qidiruv uchun"
+    "keywords": "kalit so'zlar",
+    "language": "uz", (agar matnda til aniq bo'lsa: uz, ru, en)
+    "quality": "720p" (agar matnda sifat ko'rsatilgan bo'lsa)
 }}
 
-Faqat JSON, markdown yoki backtick ishlatma.
+Agar matnda ma'lumot yetishmasa, o'zing qidirib to'ldir. Faqat JSON qaytar.
 """
         text = await self._generate(prompt)
         text = text.strip().replace("```json", "").replace("```", "").strip()
         try:
             return json.loads(text)
         except json.JSONDecodeError:
+            # Try to find JSON in text if it's not pure
+            match = re.search(r'\{(?:[^{}]|(?R))*\}', text)
+            if match:
+                try:
+                    return json.loads(match.group())
+                except:
+                    pass
             logger.error(f"Failed to parse Gemini JSON: {text[:200]}")
             return None
 

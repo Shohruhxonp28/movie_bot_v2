@@ -201,12 +201,29 @@ async def _send_version(cb, version, user, lang, movie_id, session, bot):
         except Exception:
             pass
 
-    await cb.message.answer_video(
-        video=version.file_id,
-        caption=caption,
-        thumbnail=thumb,
-        parse_mode="HTML",
-    )
+    if version.database_message_id and settings.DATABASE_CHANNEL_ID:
+        try:
+            await bot.copy_message(
+                chat_id=cb.from_user.id,
+                from_chat_id=settings.DATABASE_CHANNEL_ID,
+                message_id=version.database_message_id,
+                caption=caption,
+                parse_mode="HTML"
+            )
+        except Exception:
+            await cb.message.answer_video(
+                video=version.file_id,
+                caption=caption,
+                thumbnail=thumb,
+                parse_mode="HTML",
+            )
+    else:
+        await cb.message.answer_video(
+            video=version.file_id,
+            caption=caption,
+            thumbnail=thumb,
+            parse_mode="HTML",
+        )
     await user_svc.increment_downloads(user.id)
     await movie_svc.increment_version_downloads(version.id)
     await movie_svc.log_download(user.id, movie_id, version.id)
@@ -277,12 +294,29 @@ async def _send_episode_version(cb, version, user, lang, session):
         except Exception:
             pass
 
-    await cb.message.answer_video(
-        video=version.file_id,
-        caption=caption,
-        thumbnail=thumb,
-        parse_mode="HTML",
-    )
+    if version.database_message_id and settings.DATABASE_CHANNEL_ID:
+        try:
+            await cb.bot.copy_message(
+                chat_id=cb.from_user.id,
+                from_chat_id=settings.DATABASE_CHANNEL_ID,
+                message_id=version.database_message_id,
+                caption=caption,
+                parse_mode="HTML"
+            )
+        except Exception:
+            await cb.message.answer_video(
+                video=version.file_id,
+                caption=caption,
+                thumbnail=thumb,
+                parse_mode="HTML",
+            )
+    else:
+        await cb.message.answer_video(
+            video=version.file_id,
+            caption=caption,
+            thumbnail=thumb,
+            parse_mode="HTML",
+        )
     await user_svc.increment_downloads(user.id)
     await movie_svc.increment_episode_version_downloads(version.id)
 

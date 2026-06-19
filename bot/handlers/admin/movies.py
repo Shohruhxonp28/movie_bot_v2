@@ -43,6 +43,88 @@ class AddMovieState(StatesGroup):
     waiting_trailer = State()
 
 
+# ─── Quick Add (AI from Caption) ──────────────────────────────────────────────
+@router.message(F.video & (F.caption | F.forward_from_chat))
+async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot, state: FSMContext):
+    """Admin forwards a video with description. AI extracts info and adds movie."""
+    caption = message.caption or ""
+    if not caption and message.forward_from_chat:
+        # If it's a forward without caption, maybe we can't do much, but let's try
+        await message.answer("🤖 Bu videoda tavsif yo'q. Iltimos, tavsifi bor videoni forward qiling yoki tavsif yozing.")
+        return
+
+    thinking = await message.answer("🤖 AI ma'lumotlarni o'qiyapti va kino yaratmoqda...")
+    
+    gemini = GeminiService()
+    data = await gemini.get_movie_info(caption)
+    
+    if not data or not data.get("title_original"):
+        await thinking.edit_text("❌ AI ma'lumotlarni o'qiy olmadi. Iltimos, tavsifni tekshiring.")
+        return
+
+    movie_svc = MovieService(session)
+    code = await movie_svc.get_next_movie_code()
+    
+    movie_data = {
+        "code": code,
+        "movie_type": data.get("movie_type", "film"),
+        "title_original": data.get("title_original", "Unknown"),
+        "title_uz": data.get("title_uz"),
+        "title_ru": data.get("title_ru"),
+        "title_en": data.get("title_en"),
+        "description_uz": data.get("description_uz"),
+        "description_ru": data.get("description_ru"),
+        "description_en": data.get("description_en"),
+        "genre": data.get("genre"),
+        "year": data.get("year"),
+        "country": data.get("country"),
+        "imdb_rating": data.get("imdb_rating"),
+        "trailer_type": "video",
+        "trailer_file_id": message.video.file_id,
+        # Other fields like keywords, duration can be added if needed
+    }
+    
+    movie = await movie_svc.create_movie(movie_data)
+    
+    # Send to database channel
+    from bot.config import settings
+    database_message_id = None
+    if settings.DATABASE_CHANNEL_ID:
+        try:
+            db_msg = await bot.send_video(
+                chat_id=settings.DATABASE_CHANNEL_ID,
+                video=message.video.file_id,
+                caption=f"🎬 {movie.title_uz or movie.title_original}\n📌 Kod: {movie.code}\n✅ {data.get('quality', '720p')} | {data.get('language', 'uz')}"
+            )
+            database_message_id = db_msg.message_id
+        except Exception as e:
+            await message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
+
+    # Create version
+    version_data = {
+        "movie_id": movie.id,
+        "file_id": message.video.file_id,
+        "quality": data.get("quality", "720p"),
+        "language": data.get("language", "uz"),
+        "dub_type": "professional",
+        "database_message_id": database_message_id,
+    }
+    await movie_svc.add_movie_version(version_data)
+    
+    # Auto-publish to public channel
+    pub_svc = PublicChannelService(session, bot)
+    await pub_svc.publish_trailer_to_public_channel(movie)
+    
+    await thinking.edit_text(
+        f"✅ <b>Kino muvaffaqiyatli qo'shildi!</b>\n\n"
+        f"🎬 Nomi: {movie.title_uz or movie.title_original}\n"
+        f"📌 Kod: <code>{movie.code}</code>\n"
+        f"📡 Kanalda chop etildi.",
+        parse_mode="HTML"
+    )
+    await state.clear()
+
+
 # ─── Movie List ───────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "adm_movies")

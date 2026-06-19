@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     PUBLIC_CHANNEL_USERNAME: str = ""
     MAIN_CHANNEL_ID: str = ""
     MAIN_CHANNEL_USERNAME: str = ""
+    DATABASE_CHANNEL_ID: str = ""
 
     # Admin group for payment checks
     ADMIN_GROUP_ID: str = ""

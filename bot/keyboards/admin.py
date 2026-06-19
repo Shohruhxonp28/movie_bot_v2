@@ -105,6 +105,7 @@ def admin_dub_type_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Professional", callback_data="adm_dub_professional")],
         [InlineKeyboardButton(text="Havaskor", callback_data="adm_dub_amateur")],
         [InlineKeyboardButton(text="Subtitr", callback_data="adm_dub_subtitle")],
+        [InlineKeyboardButton(text="⏩ Skip", callback_data="adm_dub_skip")],
     ])
 
 

@@ -2,6 +2,7 @@ from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.utils.filters import IsAdmin
 from bot.services.movie_service import MovieService
@@ -75,6 +76,8 @@ async def adm_version_language(cb: CallbackQuery, state: FSMContext):
 @router.callback_query(AddVersionState.waiting_dub_type, F.data.startswith("adm_dub_"))
 async def adm_version_dub(cb: CallbackQuery, state: FSMContext):
     dub = cb.data.replace("adm_dub_", "")
+    if dub == "skip":
+        dub = "professional"
     await state.update_data(dub_type=dub)
     await state.set_state(AddVersionState.waiting_premium)
     await cb.message.answer("💎 Versiya turi:", reply_markup=admin_premium_kb())
@@ -94,6 +97,21 @@ async def adm_version_premium(cb: CallbackQuery, state: FSMContext):
 async def adm_version_size(message: Message, state: FSMContext, session: AsyncSession):
     size = None if message.text.strip() == "/skip" else message.text.strip()
     data = await state.get_data()
+    movie_svc = MovieService(session)
+    movie = await movie_svc.get_by_id(data["movie_id"])
+
+    from bot.config import settings
+    database_message_id = None
+    if settings.DATABASE_CHANNEL_ID:
+        try:
+            db_msg = await message.bot.send_video(
+                chat_id=settings.DATABASE_CHANNEL_ID,
+                video=data["file_id"],
+                caption=f"🎬 {movie.title_uz or movie.title_original}\n📌 Kod: {movie.code}\n✅ {data['quality']} | {data['language']}"
+            )
+            database_message_id = db_msg.message_id
+        except Exception as e:
+            await message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
 
     version_data = {
         "movie_id": data["movie_id"],
@@ -103,6 +121,7 @@ async def adm_version_size(message: Message, state: FSMContext, session: AsyncSe
         "dub_type": data["dub_type"],
         "is_premium": data["is_premium"],
         "file_size": size,
+        "database_message_id": database_message_id,
     }
 
     movie_svc = MovieService(session)
@@ -191,6 +210,8 @@ async def adm_ep_language(cb: CallbackQuery, state: FSMContext):
 @router.callback_query(AddEpisodeState.waiting_dub_type, F.data.startswith("adm_dub_"))
 async def adm_ep_dub(cb: CallbackQuery, state: FSMContext):
     dub = cb.data.replace("adm_dub_", "")
+    if dub == "skip":
+        dub = "professional"
     await state.update_data(ep_dub=dub)
     await state.set_state(AddEpisodeState.waiting_premium)
     await cb.message.answer("💎 Versiya turi:", reply_markup=admin_premium_kb())
@@ -201,6 +222,27 @@ async def adm_ep_dub(cb: CallbackQuery, state: FSMContext):
 async def adm_ep_premium(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
     is_premium = cb.data == "adm_prem_yes"
     data = await state.get_data()
+    movie_svc = MovieService(session)
+    from bot.database.models import Episode, Movie
+    result = await session.execute(
+        select(Movie).join(Episode).where(Episode.id == data["episode_id"])
+    )
+    movie = result.scalar_one_or_none()
+    res_ep = await session.execute(select(Episode).where(Episode.id == data["episode_id"]))
+    episode = res_ep.scalar_one_or_none()
+
+    from bot.config import settings
+    database_message_id = None
+    if settings.DATABASE_CHANNEL_ID and movie and episode:
+        try:
+            db_msg = await cb.bot.send_video(
+                chat_id=settings.DATABASE_CHANNEL_ID,
+                video=data["ep_file_id"],
+                caption=f"🎬 {movie.title_uz or movie.title_original}\n🔢 Qism: {episode.episode_number}\n📌 Kod: {movie.code}\n✅ {data['ep_quality']} | {data['ep_language']}"
+            )
+            database_message_id = db_msg.message_id
+        except Exception as e:
+            await cb.message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
 
     ep_version_data = {
         "episode_id": data["episode_id"],
@@ -209,6 +251,7 @@ async def adm_ep_premium(cb: CallbackQuery, state: FSMContext, session: AsyncSes
         "language": data["ep_language"],
         "dub_type": data["ep_dub"],
         "is_premium": is_premium,
+        "database_message_id": database_message_id,
     }
 
     movie_svc = MovieService(session)

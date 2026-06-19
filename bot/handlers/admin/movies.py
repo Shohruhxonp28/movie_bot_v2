@@ -1,5 +1,6 @@
 import json
 from aiogram import Router, F, Bot
+from aiogram.filters import StateFilter
 from aiogram.types import Message, CallbackQuery, PhotoSize
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -23,6 +24,7 @@ router.callback_query.filter(IsAdmin())
 
 # Temp storage for AI-generated movie data (keyed by admin user_id)
 _temp_movies: dict = {}
+_processed_msg_ids: set = set() # Simple de-duplication
 
 
 class AddMovieState(StatesGroup):
@@ -44,9 +46,18 @@ class AddMovieState(StatesGroup):
 
 
 # ─── Quick Add (AI from Caption) ──────────────────────────────────────────────
-@router.message(F.video & (F.caption | F.forward_from_chat))
+@router.message(StateFilter(None), F.video & (F.caption | F.forward_from_chat))
 async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot, state: FSMContext):
     """Admin forwards a video with description. AI extracts info and adds movie."""
+    # Prevent duplicate processing
+    msg_key = f"{message.from_user.id}:{message.message_id}"
+    if msg_key in _processed_msg_ids:
+        return
+    _processed_msg_ids.add(msg_key)
+    # Clean up old keys (keep last 100)
+    if len(_processed_msg_ids) > 100:
+        _processed_msg_ids.clear() # Simple enough for this use case
+    
     caption = message.caption or ""
     if not caption and message.forward_from_chat:
         await message.answer("🤖 Bu videoda tavsif yo'q.")

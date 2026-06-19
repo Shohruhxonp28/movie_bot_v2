@@ -49,17 +49,17 @@ async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot,
     """Admin forwards a video with description. AI extracts info and adds movie."""
     caption = message.caption or ""
     if not caption and message.forward_from_chat:
-        # If it's a forward without caption, maybe we can't do much, but let's try
-        await message.answer("🤖 Bu videoda tavsif yo'q. Iltimos, tavsifi bor videoni forward qiling yoki tavsif yozing.")
+        await message.answer("🤖 Bu videoda tavsif yo'q.")
         return
 
-    thinking = await message.answer("🤖 AI ma'lumotlarni o'qiyapti va kino yaratmoqda...")
+    # Show typing action to indicate work
+    await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     
     gemini = GeminiService()
     data = await gemini.get_movie_info(caption)
     
     if not data or not data.get("title_original"):
-        await thinking.edit_text("❌ AI ma'lumotlarni o'qiy olmadi. Iltimos, tavsifni tekshiring.")
+        await message.answer("❌ AI ma'lumotlarni o'qiy olmadi.")
         return
 
     movie_svc = MovieService(session)
@@ -80,7 +80,6 @@ async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot,
         "country": data.get("country"),
         "imdb_rating": data.get("imdb_rating"),
         "trailer_type": "none",
-        # "trailer_file_id": message.video.file_id, # Removed as per user request
     }
     
     movie = await movie_svc.create_movie(movie_data)
@@ -96,8 +95,8 @@ async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot,
                 caption=f"🎬 {movie.title_uz or movie.title_original}\n📌 Kod: {movie.code}"
             )
             database_message_id = db_msg.message_id
-        except Exception as e:
-            await message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
+        except Exception:
+            pass
 
     # Create version
     version_data = {
@@ -110,11 +109,11 @@ async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot,
     }
     await movie_svc.add_movie_version(version_data)
     
-    # Auto-publish to public channel
+    # Auto-publish to public channel (Text only post)
     pub_svc = PublicChannelService(session, bot)
     await pub_svc.publish_trailer_to_public_channel(movie)
     
-    await thinking.edit_text(
+    await message.answer(
         f"✅ <b>Kino saqlandi!</b>\n\n"
         f"🎬 Nomi: {movie.title_uz or movie.title_original}\n"
         f"📌 Kod: <code>{movie.code}</code>",

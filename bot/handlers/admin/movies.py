@@ -79,9 +79,8 @@ async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot,
         "year": data.get("year"),
         "country": data.get("country"),
         "imdb_rating": data.get("imdb_rating"),
-        "trailer_type": "video",
-        "trailer_file_id": message.video.file_id,
-        # Other fields like keywords, duration can be added if needed
+        "trailer_type": "none",
+        # "trailer_file_id": message.video.file_id, # Removed as per user request
     }
     
     movie = await movie_svc.create_movie(movie_data)
@@ -94,7 +93,7 @@ async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot,
             db_msg = await bot.send_video(
                 chat_id=settings.DATABASE_CHANNEL_ID,
                 video=message.video.file_id,
-                caption=f"🎬 {movie.title_uz or movie.title_original}\n📌 Kod: {movie.code}\n✅ {data.get('quality', '720p')} | {data.get('language', 'uz')}"
+                caption=f"🎬 {movie.title_uz or movie.title_original}\n📌 Kod: {movie.code}"
             )
             database_message_id = db_msg.message_id
         except Exception as e:
@@ -116,10 +115,9 @@ async def adm_quick_add_video(message: Message, session: AsyncSession, bot: Bot,
     await pub_svc.publish_trailer_to_public_channel(movie)
     
     await thinking.edit_text(
-        f"✅ <b>Kino muvaffaqiyatli qo'shildi!</b>\n\n"
+        f"✅ <b>Kino saqlandi!</b>\n\n"
         f"🎬 Nomi: {movie.title_uz or movie.title_original}\n"
-        f"📌 Kod: <code>{movie.code}</code>\n"
-        f"📡 Kanalda chop etildi.",
+        f"📌 Kod: <code>{movie.code}</code>",
         parse_mode="HTML"
     )
     await state.clear()

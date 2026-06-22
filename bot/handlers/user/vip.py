@@ -69,8 +69,19 @@ async def _build_vip_menu(user_id: int, session: AsyncSession):
 
 @router.callback_query(F.data == "menu_vip")
 async def show_vip_cb(cb: CallbackQuery, session: AsyncSession):
+    logger.info(f"User {cb.from_user.id} requested VIP menu (callback)")
     text, kb, _ = await _build_vip_menu(cb.from_user.id, session)
-    await cb.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    
+    try:
+        if cb.message.photo:
+            await cb.message.answer(text, reply_markup=kb, parse_mode="HTML")
+            await cb.message.delete()
+        else:
+            await cb.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Error showing VIP menu (callback): {e}")
+        await cb.message.answer(text, reply_markup=kb, parse_mode="HTML")
+    
     await cb.answer()
 
 
@@ -78,6 +89,7 @@ async def show_vip_cb(cb: CallbackQuery, session: AsyncSession):
     "💎 VIP obuna", "💎 VIP подписка", "💎 VIP subscription"
 ]))
 async def show_vip_msg(message: Message, session: AsyncSession):
+    logger.info(f"User {message.from_user.id} requested VIP menu (text)")
     text, kb, _ = await _build_vip_menu(message.from_user.id, session)
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
 

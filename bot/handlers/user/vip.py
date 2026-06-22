@@ -127,7 +127,7 @@ async def vip_plan_selected(cb: CallbackQuery, state: FSMContext, session: Async
             f"⚠️ <b>O'QIMASDAN PUL TASHLAMANG!</b>\n\n"
             f"Pastdagi faqat pulni {price} tashlamang, "
             f"faqat kopirovat orqali qancha pul bo'lsa o'shani tashlang.\n"
-            f"Agar pulingiz tushmay qolsa, adminga (@brent_111) chekni tashlang, sizga VIP qilib beradi."
+            f"Agar pulingiz tushmay qolsa, adminga (@Shohruhxon_2006) chekni tashlang, sizga VIP qilib beradi."
         ),
         "ru": (
             f"✅ <b>Запрос на оплату создан!</b>\n\n"
@@ -140,7 +140,7 @@ async def vip_plan_selected(cb: CallbackQuery, state: FSMContext, session: Async
             f"⚠️ <b>НЕ ОТПRAWЛЯЙТЕ ДЕНЬГИ БЕЗ ЧТЕНИЯ!</b>\n\n"
             f"Отправляйте именно ту сумму, которая указана ({price}), "
             f"лучше всего скопируйте её.\n"
-            f"Если оплата не прошла, отправьте чек админу (@brent_111)."
+            f"Если оплата не прошла, отправьте чек админу (@Shohruhxon_2006)."
         ),
         "en": (
             f"✅ <b>Payment request created!</b>\n\n"
@@ -153,12 +153,12 @@ async def vip_plan_selected(cb: CallbackQuery, state: FSMContext, session: Async
             f"⚠️ <b>DO NOT SEND MONEY WITHOUT READING!</b>\n\n"
             f"Send exactly the amount specified ({price}), "
             f"copy it to be sure.\n"
-            f"If payment fails, send the receipt to admin (@brent_111)."
+            f"If payment fails, send the receipt to admin (@Shohruhxon_2006)."
         ),
     }
 
     buttons = [
-        [InlineKeyboardButton(text="🟣 Kvitansiya", url="https://t.me/brent_111")], # Placeholder for receipt link or similar
+        [InlineKeyboardButton(text="🟣 Kvitansiya", url="https://t.me/Shohruhxon_2006")],
         [InlineKeyboardButton(text=f"📋 Summani nusxalash: {price}", callback_data=f"copy_price_{plan.price}")],
         [InlineKeyboardButton(text=f"📋 Kartani nusxalash: {card}", callback_data=f"copy_card_{card}")],
         [InlineKeyboardButton(text="🔄 To'lovni tekshirish", callback_data=f"vip_send_check_{plan_id}")],

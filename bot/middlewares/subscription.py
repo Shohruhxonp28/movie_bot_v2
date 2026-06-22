@@ -44,6 +44,12 @@ class SubscriptionMiddleware(BaseMiddleware):
         if not session or not bot:
             return await handler(event, data)
 
+        # Skip subscription check for VIPs
+        from bot.services.user_service import UserService
+        user_svc = UserService(session)
+        if await user_svc.is_vip(user.id):
+            return await handler(event, data)
+
         # Check if subscription check is needed
         svc = SubscriptionService(session, bot)
         not_subscribed = await svc.get_unsubscribed_channels(user.id)

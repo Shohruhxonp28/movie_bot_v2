@@ -176,31 +176,19 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     # ─── VIP ─────────────────────────────────────────────────────────────────
     "vip_info": {
         "uz": (
-            "💎 VIP obuna afzalliklari:\n\n"
-            "✅ Cheksiz yuklash\n"
-            "✅ 1080p va 4K sifatlar\n"
-            "✅ Reklamasiz\n"
-            "✅ Barcha premium kontentlar\n"
-            "✅ AI tavsiya + ustuvorlik\n\n"
-            "VIP rejalardan birini tanlang:"
+            "💎 <b>VIP obuna</b>\n\n"
+            "VIP foydalanuvchilar majburiy kanallarga obuna bo'lmasdan bot'dan foydalana oladi.\n\n"
+            "Tarifni tanlang:"
         ),
         "ru": (
-            "💎 Преимущества VIP подписки:\n\n"
-            "✅ Неограниченные загрузки\n"
-            "✅ Качество 1080p и 4K\n"
-            "✅ Без рекламы\n"
-            "✅ Весь премиум контент\n"
-            "✅ AI рекомендации + приоритет\n\n"
-            "Выберите один из VIP планов:"
+            "💎 <b>VIP подписка</b>\n\n"
+            "VIP пользователи могут использовать бот без подписки на обязательные каналы.\n\n"
+            "Выберите тариф:"
         ),
         "en": (
-            "💎 VIP Subscription Benefits:\n\n"
-            "✅ Unlimited downloads\n"
-            "✅ 1080p and 4K quality\n"
-            "✅ Ad-free\n"
-            "✅ All premium content\n"
-            "✅ AI recommendations + priority\n\n"
-            "Choose a VIP plan:"
+            "💎 <b>VIP Subscription</b>\n\n"
+            "VIP users can use the bot without subscribing to mandatory channels.\n\n"
+            "Choose a plan:"
         ),
     },
 

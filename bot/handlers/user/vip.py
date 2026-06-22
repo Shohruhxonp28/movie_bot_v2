@@ -22,12 +22,22 @@ class VIPCheckState(StatesGroup):
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
+import random
+import string
+
 def _price_label(plan, lang: str) -> str:
+    # Use space as thousands separator for UZ
+    formatted_price = f"{plan.price:,.0f}".replace(",", " ")
     if lang == "ru":
-        return f"{plan.price:,.0f} руб"
+        return f"{formatted_price} руб"
     elif lang == "en":
-        return f"${plan.price:,.0f}"
-    return f"{plan.price:,.0f} so'm"
+        return f"${formatted_price}"
+    return f"{formatted_price} so'm"
+
+
+def _generate_payment_id(length=16):
+    chars = string.ascii_letters + string.digits
+    return "".join(random.choice(chars) for _ in range(length))
 
 
 async def _build_vip_menu(user_id: int, session: AsyncSession):
@@ -41,7 +51,7 @@ async def _build_vip_menu(user_id: int, session: AsyncSession):
     for plan in plans:
         plan_name = getattr(plan, f"name_{lang}", plan.name_uz)
         buttons.append([InlineKeyboardButton(
-            text=f"💎 {plan_name} — {_price_label(plan, lang)}",
+            text=f"👇 {plan_name} — {_price_label(plan, lang)}",
             callback_data=f"vip_plan_{plan.id}",
         )])
     if not plans:
@@ -51,7 +61,7 @@ async def _build_vip_menu(user_id: int, session: AsyncSession):
             "en": "No VIP plans available yet. Contact admin.",
         }
         text = no_plans.get(lang, no_plans["uz"])
-    buttons.append([InlineKeyboardButton(text=_("btn_menu", lang), callback_data="go_main_menu")])
+    buttons.append([InlineKeyboardButton(text=_("btn_back", lang), callback_data="go_main_menu")])
     return text, InlineKeyboardMarkup(inline_keyboard=buttons), lang
 
 
@@ -60,7 +70,7 @@ async def _build_vip_menu(user_id: int, session: AsyncSession):
 @router.callback_query(F.data == "menu_vip")
 async def show_vip_cb(cb: CallbackQuery, session: AsyncSession):
     text, kb, _ = await _build_vip_menu(cb.from_user.id, session)
-    await cb.message.answer(text, reply_markup=kb)
+    await cb.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await cb.answer()
 
 
@@ -69,7 +79,7 @@ async def show_vip_cb(cb: CallbackQuery, session: AsyncSession):
 ]))
 async def show_vip_msg(message: Message, session: AsyncSession):
     text, kb, _ = await _build_vip_menu(message.from_user.id, session)
-    await message.answer(text, reply_markup=kb)
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 # ─── Plan Selected → Show Payment Details ─────────────────────────────────────
@@ -90,59 +100,82 @@ async def vip_plan_selected(cb: CallbackQuery, state: FSMContext, session: Async
 
     plan_name = getattr(plan, f"name_{lang}", plan.name_uz)
     price = _price_label(plan, lang)
-    card = settings.PAYMENT_CARD or "—"
-    card_holder = settings.PAYMENT_NAME or "—"
+    card = settings.PAYMENT_CARD or "5614 6818 7277 3647"
+    payment_id = _generate_payment_id()
 
     payment_texts = {
         "uz": (
-            f"💎 <b>{plan_name}</b> — {price}\n"
-            f"⏳ Muddat: <b>{plan.duration_days} kun</b>\n\n"
-            f"💳 To'lov rekvizitlari:\n"
-            f"🏦 Karta raqami: <code>{card}</code>\n"
-            f"👤 Karta egasi: <b>{card_holder}</b>\n\n"
-            f"📌 To'lovdan so'ng <b>chek rasmini</b> yuboring.\n"
-            f"Admin tekshirib, VIP faollashtiradi."
+            f"✅ <b>To'lov so'rovi yaratildi!</b>\n\n"
+            f"💎 Tarif: <b>{plan_name}</b>\n"
+            f"📅 Davomiyligi: <b>{plan.duration_days} kun</b>\n"
+            f"🆔 To'lov: <code>{payment_id}</code>\n"
+            f"💵 Summa: <b>{price}</b>\n\n"
+            f"💳 Karta: <code>{card}</code>\n"
+            f"<i>Karta raqamni nusxalab to'lov qiling.</i>\n\n"
+            f"⚠️ <b>O'QIMASDAN PUL TASHLAMANG!</b>\n\n"
+            f"Pastdagi faqat pulni {price} tashlamang, "
+            f"faqat kopirovat orqali qancha pul bo'lsa o'shani tashlang.\n"
+            f"Agar pulingiz tushmay qolsa, adminga (@brent_111) chekni tashlang, sizga VIP qilib beradi."
         ),
         "ru": (
-            f"💎 <b>{plan_name}</b> — {price}\n"
-            f"⏳ Срок: <b>{plan.duration_days} дней</b>\n\n"
-            f"💳 Реквизиты для оплаты:\n"
-            f"🏦 Номер карты: <code>{card}</code>\n"
-            f"👤 Владелец: <b>{card_holder}</b>\n\n"
-            f"📌 После оплаты отправьте <b>чек (скриншот)</b>.\n"
-            f"Админ проверит и активирует VIP."
+            f"✅ <b>Запрос на оплату создан!</b>\n\n"
+            f"💎 Тариф: <b>{plan_name}</b>\n"
+            f"📅 Длительность: <b>{plan.duration_days} дней</b>\n"
+            f"🆔 Оплата: <code>{payment_id}</code>\n"
+            f"💵 Сумма: <b>{price}</b>\n\n"
+            f"💳 Карта: <code>{card}</code>\n"
+            f"<i>Скопируйте номер карты и произведите оплату.</i>\n\n"
+            f"⚠️ <b>НЕ ОТПRAWЛЯЙТЕ ДЕНЬГИ БЕЗ ЧТЕНИЯ!</b>\n\n"
+            f"Отправляйте именно ту сумму, которая указана ({price}), "
+            f"лучше всего скопируйте её.\n"
+            f"Если оплата не прошла, отправьте чек админу (@brent_111)."
         ),
         "en": (
-            f"💎 <b>{plan_name}</b> — {price}\n"
-            f"⏳ Duration: <b>{plan.duration_days} days</b>\n\n"
-            f"💳 Payment details:\n"
-            f"🏦 Card: <code>{card}</code>\n"
-            f"👤 Holder: <b>{card_holder}</b>\n\n"
-            f"📌 After payment, send the <b>receipt screenshot</b>.\n"
-            f"Admin will verify and activate your VIP."
+            f"✅ <b>Payment request created!</b>\n\n"
+            f"💎 Plan: <b>{plan_name}</b>\n"
+            f"📅 Duration: <b>{plan.duration_days} days</b>\n"
+            f"🆔 Payment: <code>{payment_id}</code>\n"
+            f"💵 Amount: <b>{price}</b>\n\n"
+            f"💳 Card: <code>{card}</code>\n"
+            f"<i>Copy the card number and make the payment.</i>\n\n"
+            f"⚠️ <b>DO NOT SEND MONEY WITHOUT READING!</b>\n\n"
+            f"Send exactly the amount specified ({price}), "
+            f"copy it to be sure.\n"
+            f"If payment fails, send the receipt to admin (@brent_111)."
         ),
     }
 
-    btn_send = {
-        "uz": "📸 Chek yuborish",
-        "ru": "📸 Отправить чек",
-        "en": "📸 Send receipt",
-    }
+    buttons = [
+        [InlineKeyboardButton(text="🟣 Kvitansiya", url="https://t.me/brent_111")], # Placeholder for receipt link or similar
+        [InlineKeyboardButton(text=f"📋 Summani nusxalash: {price}", callback_data=f"copy_price_{plan.price}")],
+        [InlineKeyboardButton(text=f"📋 Kartani nusxalash: {card}", callback_data=f"copy_card_{card}")],
+        [InlineKeyboardButton(text="🔄 To'lovni tekshirish", callback_data=f"vip_send_check_{plan_id}")],
+        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="menu_vip")]
+    ]
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=btn_send.get(lang, btn_send["uz"]),
-            callback_data=f"vip_send_check_{plan_id}",
-        )],
-        [InlineKeyboardButton(text=_("btn_back", lang), callback_data="menu_vip")],
-    ])
-
-    await cb.message.answer(
+    await cb.message.edit_text(
         payment_texts.get(lang, payment_texts["uz"]),
         parse_mode="HTML",
-        reply_markup=kb,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
     )
     await cb.answer()
+
+
+@router.callback_query(F.data.startswith("copy_price_"))
+async def copy_price_cb(cb: CallbackQuery):
+    price = cb.data.split("_")[-1]
+    # format price with space for display in alert
+    try:
+        f_price = f"{float(price):,.0f}".replace(",", " ")
+    except:
+        f_price = price
+    await cb.answer(f"Summa: {f_price} so'm. Uni xabardagi kodni bosib nusxalab oling.", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("copy_card_"))
+async def copy_card_cb(cb: CallbackQuery):
+    card = cb.data.split("_")[-1]
+    await cb.answer(f"Karta: {card}. Uni xabardagi kodni bosib nusxalab oling.", show_alert=True)
 
 
 # ─── User Ready to Send Check ─────────────────────────────────────────────────

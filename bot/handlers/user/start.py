@@ -42,6 +42,33 @@ async def cmd_start(
             if is_new and referrer_id != user_id:
                 await user_svc.process_referral(user_id, referrer_id)
 
+    # Notify admins about new user
+    if is_new:
+        from bot.utils.logger import logger
+        user_mention = f"@{username}" if username else f"ID: {user_id}"
+        admin_text = (
+            f"👤 <b>Yangi foydalanuvchi!</b>\n\n"
+            f"👤 Ism: <b>{full_name}</b>\n"
+            f"🆔 ID: <code>{user_id}</code>\n"
+            f"🔗 Username: {user_mention}\n"
+        )
+        if args.startswith("ref_"):
+            admin_text += f"👥 Kim orqali: <code>{args[4:]}</code>"
+
+        # Send to group
+        if settings.ADMIN_GROUP_ID:
+            try:
+                await bot.send_message(settings.ADMIN_GROUP_ID, admin_text, parse_mode="HTML")
+            except Exception as e:
+                logger.error(f"Error sending new user notify to group: {e}")
+        
+        # Send to individual admins
+        for adm_id in settings.admin_ids_list:
+            try:
+                await bot.send_message(adm_id, admin_text, parse_mode="HTML")
+            except Exception:
+                pass
+
     # Handle movie deep link
     elif args.startswith("movie_"):
         movie_code = args[6:]

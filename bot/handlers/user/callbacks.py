@@ -1,6 +1,6 @@
 import io
 from aiogram import Router, F, Bot
-from aiogram.types import CallbackQuery, BufferedInputFile
+from aiogram.types import CallbackQuery, BufferedInputFile, Message
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.services.user_service import UserService

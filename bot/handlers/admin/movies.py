@@ -39,6 +39,11 @@ class AddMovieState(StatesGroup):
     waiting_trailer = State()
 
 
+class AddSerialState(StatesGroup):
+    title = State()
+    channel_link = State()
+
+
 # ─── Movie List ───────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "adm_movies")
@@ -109,23 +114,55 @@ async def adm_add_movie(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
-@router.message(AddMovieState.manual_title)
-async def adm_manual_title(message: Message, state: FSMContext):
+@router.callback_query(F.data == "adm_add_serial")
+async def adm_add_serial_start(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(AddSerialState.title)
+    await cb.message.edit_text(
+        "📝 Serial nomini kiriting:",
+        reply_markup=admin_back_kb(),
+    )
+    await cb.answer()
+
+
+@router.message(AddSerialState.title)
+async def adm_serial_title(message: Message, state: FSMContext):
     await state.update_data(title_original=message.text.strip())
-    await state.set_state(AddMovieState.manual_type)
+    await state.set_state(AddSerialState.channel_link)
+    await message.answer("🔗 Serial qismlari joylashgan kanal havolasini (linkini) kiriting (masalan: https://t.me/...):")
+
+
+@router.message(AddSerialState.channel_link)
+async def adm_serial_link(message: Message, state: FSMContext, session: AsyncSession):
+    link = message.text.strip()
+    data = await state.get_data()
+    
+    movie_svc = MovieService(session)
+    code = await movie_svc.get_next_movie_code()
+    movie_data = {
+        "code": code,
+        "movie_type": "serial",
+        "title_original": data.get("title_original"),
+        "title_uz": data.get("title_original"),
+        "serial_link": link,
+    }
+    
+    await movie_svc.create_movie(movie_data)
+    await state.clear()
+    
     await message.answer(
-        "🎬 Kino turini tanlang:",
-        reply_markup=admin_movie_type_kb(),
+        f"✅ <b>Serial muvaffaqiyatli saqlandi!</b>\n"
+        f"📌 Kod: <code>{code}</code>\n"
+        f"🔗 Kanal havolasi: {link}",
+        parse_mode="HTML",
+        reply_markup=admin_main_kb(),
     )
 
 
-@router.callback_query(AddMovieState.manual_type, F.data.startswith("adm_type_"))
-async def adm_manual_type(cb: CallbackQuery, state: FSMContext):
-    m_type = cb.data.replace("adm_type_", "")
-    await state.update_data(movie_type=m_type)
+@router.message(AddMovieState.manual_title)
+async def adm_manual_title(message: Message, state: FSMContext):
+    await state.update_data(title_original=message.text.strip(), movie_type="film")
     await state.set_state(AddMovieState.manual_year)
-    await cb.message.edit_text("📅 Chiqarilgan yili (masalan: 2023):")
-    await cb.answer()
+    await message.answer("📅 Chiqarilgan yili (masalan: 2023):")
 
 
 @router.message(AddMovieState.manual_year)

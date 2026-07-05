@@ -38,6 +38,7 @@ async def on_startup():
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
         # Manually add missing columns if they don't exist
         try:
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS serial_link VARCHAR(512);"))
             await conn.execute(text("ALTER TABLE movie_versions ADD COLUMN IF NOT EXISTS database_message_id BIGINT;"))
             await conn.execute(text("ALTER TABLE episode_versions ADD COLUMN IF NOT EXISTS database_message_id BIGINT;"))
         except Exception as e:

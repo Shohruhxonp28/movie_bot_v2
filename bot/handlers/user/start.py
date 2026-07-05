@@ -193,6 +193,20 @@ async def deliver_movie(
             await _send_version(message, version, user, lang, movie.id, session, bot)
             
     elif movie.movie_type in ("serial", "anime"):
+        if movie.serial_link:
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            from bot.config import settings
+            
+            title = movie.title_uz or movie.title_original
+            caption = f"🎬 <b>{title}</b> serialining barcha qismlari joylashgan kanal:\n\n👇 Ko'rish uchun pastdagi tugmani bosing."
+            
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🍿 Ko'rish", url=movie.serial_link)],
+                [InlineKeyboardButton(text="Kinoni uzatish", url=f"https://t.me/{settings.BOT_USERNAME.strip('@')}?start=movie_{movie.code}")]
+            ])
+            await message.answer(caption, reply_markup=kb, parse_mode="HTML")
+            return
+
         if not movie.episodes:
             await message.answer("⚠️ Ushbu serial/anime uchun hali qismlar yuklanmagan.")
             return

@@ -30,19 +30,10 @@ async def set_language(cb: CallbackQuery, session: AsyncSession):
     await cb.answer()
 
 
-@router.callback_query(F.data == "menu_language")
-async def show_language_menu_cb(cb: CallbackQuery):
-    await cb.message.answer(
-        "🌐 Tilni tanlang / Выберите язык / Choose language:",
-        reply_markup=language_select_kb(),
-    )
-    await cb.answer()
+from aiogram.filters import Command
 
-
-@router.message(F.text.in_([
-    "🌐 Tillar", "🌐 Язык", "🌐 Languages"
-]))
-async def show_language_menu_msg(message: Message):
+@router.message(Command("tillar"))
+async def show_language_menu_cmd(message: Message):
     await message.answer(
         "🌐 Tilni tanlang / Выберите язык / Choose language:",
         reply_markup=language_select_kb(),

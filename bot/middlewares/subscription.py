@@ -29,14 +29,22 @@ class SubscriptionMiddleware(BaseMiddleware):
 
         # Skip subscription check for group chats (e.g. admin group callbacks)
         if isinstance(event, CallbackQuery) and event.message:
-            chat_type = event.message.chat.type
-            if chat_type in ("group", "supergroup"):
+            if event.message.chat.type in ("group", "supergroup"):
                 return await handler(event, data)
 
         # Skip subscription check for admins
         from bot.config import settings
         if user.id in settings.admin_ids_list:
             return await handler(event, data)
+
+        # Skip subscription check for /start command
+        if isinstance(event, Message) and event.text and event.text.strip().startswith("/start"):
+            return await handler(event, data)
+
+        # Skip subscription check for certain callbacks (e.g. check subscription, lang select)
+        if isinstance(event, CallbackQuery) and event.data:
+            if event.data == "check_subscription" or event.data.startswith("lang_"):
+                return await handler(event, data)
 
         session: AsyncSession = data.get("session")
         bot: Bot = data.get("bot")

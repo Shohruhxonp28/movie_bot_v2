@@ -9,17 +9,9 @@ def main_menu_kb(lang: str = "uz") -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text=_("btn_ai", lang)),
                 KeyboardButton(text=_("btn_search", lang)),
-            ],
-            [
-                KeyboardButton(text=_("btn_referral", lang)),
                 KeyboardButton(text=_("btn_vip", lang)),
-            ],
-            [
-                KeyboardButton(text=_("btn_language", lang)),
-                KeyboardButton(text=_("btn_settings", lang)),
-            ],
+            ]
         ],
         resize_keyboard=True,
     )
@@ -128,7 +120,6 @@ def search_results_kb(movies, lang: str = "uz") -> InlineKeyboardMarkup:
             callback_data=f"movie_open_{m.id}",
         )])
     buttons.append([
-        InlineKeyboardButton(text="🤖 AI bilan qidirish", callback_data="menu_ai"),
         InlineKeyboardButton(text=_("btn_menu", lang), callback_data="go_main_menu"),
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)

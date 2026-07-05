@@ -69,20 +69,23 @@ async def cmd_start(
             except Exception:
                 pass
 
-    # Handle movie deep link
-    elif args.startswith("movie_"):
-        movie_code = args[6:]
-        # Check subscription first
-        sub_svc = SubscriptionService(session, bot)
-        not_subscribed = await sub_svc.get_unsubscribed_channels(user_id)
+    # 1. VIP/Subscription Check
+    sub_svc = SubscriptionService(session, bot)
+    is_vip = await user_svc.is_vip(user_id)
+    not_subscribed = [] if is_vip else await sub_svc.get_unsubscribed_channels(user_id)
 
-        if not_subscribed:
-            # Save pending movie
+    if not_subscribed:
+        # If user has a movie deep link, save it so we deliver it after they subscribe
+        if args.startswith("movie_"):
+            movie_code = args[6:]
             await user_svc.set_pending_movie(user_id, movie_code)
-            await sub_svc.send_subscription_required(message, not_subscribed, lang)
-            return
+        
+        await sub_svc.send_subscription_required(message, not_subscribed, lang)
+        return
 
-        # Deliver the movie
+    # 2. Handle movie deep link if they are subscribed or VIP
+    if args.startswith("movie_"):
+        movie_code = args[6:]
         movie_svc = MovieService(session)
         movie = await movie_svc.get_by_code(movie_code)
         if not movie:
@@ -91,7 +94,7 @@ async def cmd_start(
             await deliver_movie(message, movie, user, lang, session, bot)
         return
 
-    # New user — language selection
+    # 3. Language selection for new users
     if is_new or not user.language:
         await message.answer(
             _("welcome_new", lang),
@@ -99,7 +102,7 @@ async def cmd_start(
         )
         return
 
-    # Return: pending movie (after subscription)
+    # 4. Deliver pending movie if any
     if user.pending_movie_code:
         code = user.pending_movie_code
         await user_svc.set_pending_movie(user_id, None)
@@ -109,7 +112,7 @@ async def cmd_start(
             await deliver_movie(message, movie, user, lang, session, bot)
             return
 
-    # Main menu
+    # 5. Welcome back (main menu)
     await message.answer(
         _("welcome_back", lang),
         reply_markup=main_menu_kb(lang),
@@ -171,59 +174,28 @@ async def deliver_movie(
     session: AsyncSession,
     bot: Bot,
 ):
-    """Send movie info and handle version selection / direct send."""
-    from bot.keyboards.user import movie_actions_kb, movie_versions_kb, episode_select_kb
+    """Deliver movie files or episode list directly to the user (no movie details post)."""
     from bot.services.movie_service import MovieService
+    from bot.handlers.user.callbacks import _send_version
+    from bot.keyboards.user import episode_select_kb
 
     movie_svc = MovieService(session)
-    is_saved = await movie_svc.is_saved(user.id, movie.id)
     await movie_svc.increment_views(movie.id)
 
-    caption = get_movie_caption(movie, lang)
-    has_trailer = movie.trailer_type != "none" and (movie.trailer_file_id or movie.trailer_url)
-    active_versions = await movie_svc.get_active_versions(movie.id)
-
-    kb = movie_actions_kb(
-        movie_id=movie.id,
-        has_trailer=bool(has_trailer),
-        has_versions=bool(active_versions),
-        is_saved=is_saved,
-        lang=lang,
-    )
-
-    from bot.config import settings
-    if movie.public_post_message_id and settings.PUBLIC_CHANNEL_ID:
-        try:
-            await bot.copy_message(
-                chat_id=message.chat.id,
-                from_chat_id=settings.PUBLIC_CHANNEL_ID,
-                message_id=movie.public_post_message_id,
-                reply_markup=kb,
-            )
-        except Exception:
-            if movie.poster_file_id:
-                await message.answer_photo(
-                    photo=movie.poster_watermarked_file_id or movie.poster_file_id,
-                    caption=caption,
-                    parse_mode="HTML",
-                    reply_markup=kb,
-                )
-            else:
-                await message.answer(caption, parse_mode="HTML", reply_markup=kb)
-    else:
-        if movie.poster_file_id:
-            await message.answer_photo(
-                photo=movie.poster_watermarked_file_id or movie.poster_file_id,
-                caption=caption,
-                parse_mode="HTML",
-                reply_markup=kb,
-            )
-        else:
-            await message.answer(caption, parse_mode="HTML", reply_markup=kb)
-
-    # If serial/anime — show episode buttons
-    if movie.movie_type in ("serial", "anime") and movie.episodes:
-        from bot.keyboards.user import episode_select_kb
+    if movie.movie_type in ("film", "multfilm"):
+        active_versions = await movie_svc.get_active_versions(movie.id)
+        if not active_versions:
+            await message.answer(_("movie_no_versions", lang))
+            return
+        
+        # Direct send all active versions
+        for version in active_versions:
+            await _send_version(message, version, user, lang, movie.id, session, bot)
+            
+    elif movie.movie_type in ("serial", "anime"):
+        if not movie.episodes:
+            await message.answer("⚠️ Ushbu serial/anime uchun hali qismlar yuklanmagan.")
+            return
         await message.answer(
             _("choose_episode", lang),
             reply_markup=episode_select_kb(movie.episodes, lang),

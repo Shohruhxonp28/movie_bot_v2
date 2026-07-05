@@ -67,7 +67,7 @@ async def version_selected(cb: CallbackQuery, session: AsyncSession, bot: Bot):
 
 
 @router.callback_query(F.data.startswith("ep_"))
-async def episode_selected(cb: CallbackQuery, session: AsyncSession):
+async def episode_selected(cb: CallbackQuery, session: AsyncSession, bot: Bot):
     episode_id = int(cb.data.split("_")[-1])
     user_svc = UserService(session)
     movie_svc = MovieService(session)
@@ -83,7 +83,7 @@ async def episode_selected(cb: CallbackQuery, session: AsyncSession):
 
     if len(versions) == 1:
         version = versions[0]
-        await _send_episode_version(cb, version, user, lang, session)
+        await _send_episode_version(cb, version, user, lang, session, bot)
     else:
         await cb.message.answer(
             _("choose_version", lang),
@@ -93,7 +93,7 @@ async def episode_selected(cb: CallbackQuery, session: AsyncSession):
 
 
 @router.callback_query(F.data.startswith("epver_"))
-async def episode_version_selected(cb: CallbackQuery, session: AsyncSession):
+async def episode_version_selected(cb: CallbackQuery, session: AsyncSession, bot: Bot):
     version_id = int(cb.data.split("_")[-1])
     user_svc = UserService(session)
     movie_svc = MovieService(session)
@@ -106,7 +106,7 @@ async def episode_version_selected(cb: CallbackQuery, session: AsyncSession):
         await cb.answer(_("movie_not_found", lang), show_alert=True)
         return
 
-    await _send_episode_version(cb, version, user, lang, session)
+    await _send_episode_version(cb, version, user, lang, session, bot)
     await cb.answer()
 
 
@@ -156,13 +156,15 @@ async def movie_save(cb: CallbackQuery, session: AsyncSession):
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async def _send_version(cb, version, user, lang, movie_id, session, bot):
+async def _send_version(event, version, user, lang, movie_id, session, bot):
     user_svc = UserService(session)
     movie_svc = MovieService(session)
 
+    msg_target = event if isinstance(event, Message) else event.message
+
     # VIP check
     if version.is_premium and not await user_svc.is_vip(user.id):
-        await cb.message.answer(
+        await msg_target.answer(
             _("vip_required", lang),
             reply_markup=vip_required_kb(lang),
         )
@@ -170,7 +172,7 @@ async def _send_version(cb, version, user, lang, movie_id, session, bot):
 
     # Download limit check
     if not await user_svc.check_download_limit(user.id):
-        await cb.message.answer(
+        await msg_target.answer(
             _("download_limit", lang),
             reply_markup=vip_required_kb(lang),
         )
@@ -201,28 +203,39 @@ async def _send_version(cb, version, user, lang, movie_id, session, bot):
         except Exception:
             pass
 
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    share_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="Kinoni uzatish",
+            url=f"https://t.me/{settings.BOT_USERNAME.strip('@')}?start=movie_{movie.code}"
+        )]
+    ])
+
     if version.database_message_id and settings.DATABASE_CHANNEL_ID:
         try:
             await bot.copy_message(
-                chat_id=cb.from_user.id,
+                chat_id=user.id,
                 from_chat_id=settings.DATABASE_CHANNEL_ID,
                 message_id=version.database_message_id,
                 caption=caption,
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=share_kb,
             )
         except Exception:
-            await cb.message.answer_video(
+            await msg_target.answer_video(
                 video=version.file_id,
                 caption=caption,
                 thumbnail=thumb,
                 parse_mode="HTML",
+                reply_markup=share_kb,
             )
     else:
-        await cb.message.answer_video(
+        await msg_target.answer_video(
             video=version.file_id,
             caption=caption,
             thumbnail=thumb,
             parse_mode="HTML",
+            reply_markup=share_kb,
         )
     await user_svc.increment_downloads(user.id)
     await movie_svc.increment_version_downloads(version.id)
@@ -233,16 +246,18 @@ async def _send_version(cb, version, user, lang, movie_id, session, bot):
         ad_svc = AdService(session)
         ad = await ad_svc.get_random_ad()
         if ad and ad.show_after_download:
-            await _send_ad(cb.message, ad)
+            await _send_ad(msg_target, ad)
 
 
-async def _send_episode_version(cb, version, user, lang, session):
+async def _send_episode_version(event, version, user, lang, session, bot):
     user_svc = UserService(session)
     movie_svc = MovieService(session)
 
+    msg_target = event if isinstance(event, Message) else event.message
+
     # VIP check
     if version.is_premium and not await user_svc.is_vip(user.id):
-        await cb.message.answer(
+        await msg_target.answer(
             _("vip_required", lang),
             reply_markup=vip_required_kb(lang),
         )
@@ -250,7 +265,7 @@ async def _send_episode_version(cb, version, user, lang, session):
 
     # Download limit
     if not await user_svc.check_download_limit(user.id):
-        await cb.message.answer(
+        await msg_target.answer(
             _("download_limit", lang),
             reply_markup=vip_required_kb(lang),
         )
@@ -284,7 +299,6 @@ async def _send_episode_version(cb, version, user, lang, session):
     thumb = None
     if poster_id:
         try:
-            bot = cb.bot
             file_info = await bot.get_file(poster_id)
             if file_info.file_path:
                 dest = io.BytesIO()
@@ -294,28 +308,39 @@ async def _send_episode_version(cb, version, user, lang, session):
         except Exception:
             pass
 
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    share_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="Kinoni uzatish",
+            url=f"https://t.me/{settings.BOT_USERNAME.strip('@')}?start=movie_{movie.code}"
+        )]
+    ])
+
     if version.database_message_id and settings.DATABASE_CHANNEL_ID:
         try:
-            await cb.bot.copy_message(
-                chat_id=cb.from_user.id,
+            await bot.copy_message(
+                chat_id=user.id,
                 from_chat_id=settings.DATABASE_CHANNEL_ID,
                 message_id=version.database_message_id,
                 caption=caption,
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=share_kb,
             )
         except Exception:
-            await cb.message.answer_video(
+            await msg_target.answer_video(
                 video=version.file_id,
                 caption=caption,
                 thumbnail=thumb,
                 parse_mode="HTML",
+                reply_markup=share_kb,
             )
     else:
-        await cb.message.answer_video(
+        await msg_target.answer_video(
             video=version.file_id,
             caption=caption,
             thumbnail=thumb,
             parse_mode="HTML",
+            reply_markup=share_kb,
         )
     await user_svc.increment_downloads(user.id)
     await movie_svc.increment_episode_version_downloads(version.id)

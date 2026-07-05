@@ -48,9 +48,6 @@ def admin_movie_actions_kb(movie_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="📺 Qism qo'shish", callback_data=f"adm_addep_{movie_id}"),
         ],
         [
-            InlineKeyboardButton(text="🔄 Kanal postini yangilash", callback_data=f"adm_repost_{movie_id}"),
-        ],
-        [
             InlineKeyboardButton(text="◀️ Orqaga", callback_data="adm_movies"),
         ],
     ])

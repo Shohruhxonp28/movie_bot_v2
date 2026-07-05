@@ -12,10 +12,7 @@ from bot.middlewares.subscription import SubscriptionMiddleware
 from bot.handlers.user.start import router as start_router
 from bot.handlers.user.language import router as lang_router
 from bot.handlers.user.search import router as search_router
-from bot.handlers.user.ai import router as ai_router
 from bot.handlers.user.vip import router as vip_router
-from bot.handlers.user.referral import router as referral_router
-from bot.handlers.user.settings import router as settings_router
 from bot.handlers.user.callbacks import router as callbacks_router
 
 # Admin handlers
@@ -57,6 +54,7 @@ async def on_startup():
     
     commands = [
         BotCommand(command="start", description="Botni ishga tushirish"),
+        BotCommand(command="tillar", description="Tilni o'zgartirish"),
         BotCommand(command="admin", description="Admin panel"),
     ]
     
@@ -105,10 +103,7 @@ def register_routers():
     dp.include_router(start_router)
     dp.include_router(lang_router)
     dp.include_router(search_router)
-    dp.include_router(ai_router)
     dp.include_router(vip_router)
-    dp.include_router(referral_router)
-    dp.include_router(settings_router)
     dp.include_router(callbacks_router)
 
     # Inline

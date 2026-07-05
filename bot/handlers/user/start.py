@@ -9,6 +9,8 @@ from bot.keyboards.user import main_menu_kb, language_select_kb
 from bot.utils.i18n import _, get_movie_caption
 from bot.config import settings
 
+from aiogram.fsm.context import FSMContext
+
 router = Router()
 
 
@@ -18,7 +20,9 @@ async def cmd_start(
     command: CommandObject,
     session: AsyncSession,
     bot: Bot,
+    state: FSMContext,
 ):
+    await state.clear()
     user_id = message.from_user.id
     username = message.from_user.username
     full_name = message.from_user.full_name or ""

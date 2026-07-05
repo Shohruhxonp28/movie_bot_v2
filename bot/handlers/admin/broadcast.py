@@ -30,15 +30,10 @@ async def adm_broadcast_start(cb: CallbackQuery, state: FSMContext):
 
 @router.message(BroadcastState.waiting_message)
 async def adm_broadcast_preview(message: Message, state: FSMContext):
-    # Store message info
+    # Store the exact message details for copying
     await state.update_data(
-        msg_type="text" if message.text else "photo" if message.photo else "video",
-        msg_text=message.text or message.caption or "",
-        msg_file_id=(
-            message.photo[-1].file_id if message.photo
-            else message.video.file_id if message.video
-            else None
-        ),
+        from_chat_id=message.chat.id,
+        message_id=message.message_id
     )
     await state.set_state(BroadcastState.confirm)
 
@@ -47,16 +42,22 @@ async def adm_broadcast_preview(message: Message, state: FSMContext):
         InlineKeyboardButton(text="✅ Yuborish", callback_data="adm_bc_confirm"),
         InlineKeyboardButton(text="❌ Bekor", callback_data="adm_bc_cancel"),
     ]])
+    
+    # Send a preview copy of the message back to the admin so they see exactly how it will look
+    await message.copy_to(chat_id=message.from_user.id)
     await message.answer("👆 Yuqoridagi xabar barcha foydalanuvchilarga yuboriladi. Tasdiqlaysizmi?", reply_markup=kb)
 
 
 @router.callback_query(F.data == "adm_bc_confirm")
 async def adm_broadcast_send(cb: CallbackQuery, state: FSMContext, session: AsyncSession, bot: Bot):
     data = await state.get_data()
+    from_chat_id = data.get("from_chat_id")
+    message_id = data.get("message_id")
+
     user_svc = UserService(session)
     user_ids = await user_svc.get_all_user_ids()
 
-    await cb.message.answer(f"📨 Broadcast boshlandi... {len(user_ids)} foydalanuvchi")
+    await cb.message.answer(f"📨 Broadcast boshlandi... {len(user_ids)} foydalanuvchiga yuborilmoqda.")
     await cb.answer()
     await state.clear()
 
@@ -65,12 +66,11 @@ async def adm_broadcast_send(cb: CallbackQuery, state: FSMContext, session: Asyn
 
     for uid in user_ids:
         try:
-            if data["msg_type"] == "text":
-                await bot.send_message(uid, data["msg_text"])
-            elif data["msg_type"] == "photo":
-                await bot.send_photo(uid, data["msg_file_id"], caption=data["msg_text"])
-            elif data["msg_type"] == "video":
-                await bot.send_video(uid, data["msg_file_id"], caption=data["msg_text"])
+            await bot.copy_message(
+                chat_id=uid,
+                from_chat_id=from_chat_id,
+                message_id=message_id
+            )
             success += 1
             await asyncio.sleep(0.05)  # rate limiting
         except Exception:

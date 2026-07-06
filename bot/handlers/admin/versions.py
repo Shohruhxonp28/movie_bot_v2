@@ -48,48 +48,13 @@ async def adm_add_version_start(cb: CallbackQuery, state: FSMContext):
 
 
 @router.message(AddVersionState.waiting_video, F.video)
-async def adm_version_video(message: Message, state: FSMContext):
+async def adm_version_video(message: Message, state: FSMContext, session: AsyncSession):
     file_id = message.video.file_id
-    await state.update_data(file_id=file_id, quality="Auto")
-    await state.set_state(AddVersionState.waiting_language)
-    await message.answer("🌐 Tilni tanlang:", reply_markup=admin_language_kb())
-
-
-@router.callback_query(AddVersionState.waiting_language, F.data.startswith("adm_lang_"))
-async def adm_version_language(cb: CallbackQuery, state: FSMContext):
-    lang = cb.data.replace("adm_lang_", "")
-    await state.update_data(language=lang)
-    await state.set_state(AddVersionState.waiting_dub_type)
-    await cb.message.answer("🎙 Dublyaj turini tanlang:", reply_markup=admin_dub_type_kb())
-    await cb.answer()
-
-
-@router.callback_query(AddVersionState.waiting_dub_type, F.data.startswith("adm_dub_"))
-async def adm_version_dub(cb: CallbackQuery, state: FSMContext):
-    dub = cb.data.replace("adm_dub_", "")
-    if dub == "skip":
-        dub = "professional"
-    await state.update_data(dub_type=dub)
-    await state.set_state(AddVersionState.waiting_premium)
-    await cb.message.answer("💎 Versiya turi:", reply_markup=admin_premium_kb())
-    await cb.answer()
-
-
-@router.callback_query(AddVersionState.waiting_premium, F.data.in_({"adm_prem_yes", "adm_prem_no"}))
-async def adm_version_premium(cb: CallbackQuery, state: FSMContext):
-    is_premium = cb.data == "adm_prem_yes"
-    await state.update_data(is_premium=is_premium)
-    await state.set_state(AddVersionState.waiting_size)
-    await cb.message.answer("📦 Fayl hajmini yozing (masalan: 1.4 GB) yoki /skip:")
-    await cb.answer()
-
-
-@router.message(AddVersionState.waiting_size)
-async def adm_version_size(message: Message, state: FSMContext, session: AsyncSession):
-    size = None if message.text.strip() == "/skip" else message.text.strip()
     data = await state.get_data()
+    movie_id = data["movie_id"]
+    
     movie_svc = MovieService(session)
-    movie = await movie_svc.get_by_id(data["movie_id"])
+    movie = await movie_svc.get_by_id(movie_id)
 
     from bot.config import settings
     database_message_id = None
@@ -97,25 +62,24 @@ async def adm_version_size(message: Message, state: FSMContext, session: AsyncSe
         try:
             db_msg = await message.bot.send_video(
                 chat_id=settings.DATABASE_CHANNEL_ID,
-                video=data["file_id"],
-                caption=f"🎬 {movie.title_uz or movie.title_original}\n📌 Kod: {movie.code}\n✅ {data['quality']} | {data['language']}"
+                video=file_id,
+                caption=f"🎬 {movie.title_uz or movie.title_original}\n📌 Kod: {movie.code}\n✅ Auto | uz"
             )
             database_message_id = db_msg.message_id
         except Exception as e:
             await message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
 
     version_data = {
-        "movie_id": data["movie_id"],
-        "file_id": data["file_id"],
-        "quality": data["quality"],
-        "language": data["language"],
-        "dub_type": data["dub_type"],
-        "is_premium": data["is_premium"],
-        "file_size": size,
+        "movie_id": movie_id,
+        "file_id": file_id,
+        "quality": "Auto",
+        "language": "uz",
+        "dub_type": "professional",
+        "is_premium": False,
+        "file_size": None,
         "database_message_id": database_message_id,
     }
 
-    movie_svc = MovieService(session)
     version = await movie_svc.add_movie_version(version_data)
 
     from bot.utils.helpers import format_version_button
@@ -173,75 +137,47 @@ async def adm_episode_video_skip(message: Message, state: FSMContext):
 
 
 @router.message(AddEpisodeState.waiting_video, F.video)
-async def adm_episode_video(message: Message, state: FSMContext):
+async def adm_episode_video(message: Message, state: FSMContext, session: AsyncSession):
     file_id = message.video.file_id
-    await state.update_data(ep_file_id=file_id, ep_quality="Auto")
-    await state.set_state(AddEpisodeState.waiting_language)
-    await message.answer("🌐 Tilni tanlang:", reply_markup=admin_language_kb())
-
-
-@router.callback_query(AddEpisodeState.waiting_language, F.data.startswith("adm_lang_"))
-async def adm_ep_language(cb: CallbackQuery, state: FSMContext):
-    lang = cb.data.replace("adm_lang_", "")
-    await state.update_data(ep_language=lang)
-    await state.set_state(AddEpisodeState.waiting_dub_type)
-    await cb.message.answer("🎙 Dublyaj turini tanlang:", reply_markup=admin_dub_type_kb())
-    await cb.answer()
-
-
-@router.callback_query(AddEpisodeState.waiting_dub_type, F.data.startswith("adm_dub_"))
-async def adm_ep_dub(cb: CallbackQuery, state: FSMContext):
-    dub = cb.data.replace("adm_dub_", "")
-    if dub == "skip":
-        dub = "professional"
-    await state.update_data(ep_dub=dub)
-    await state.set_state(AddEpisodeState.waiting_premium)
-    await cb.message.answer("💎 Versiya turi:", reply_markup=admin_premium_kb())
-    await cb.answer()
-
-
-@router.callback_query(AddEpisodeState.waiting_premium, F.data.in_({"adm_prem_yes", "adm_prem_no"}))
-async def adm_ep_premium(cb: CallbackQuery, state: FSMContext, session: AsyncSession):
-    is_premium = cb.data == "adm_prem_yes"
     data = await state.get_data()
+    episode_id = data["episode_id"]
+    
     movie_svc = MovieService(session)
     from bot.database.models import Episode, Movie
     result = await session.execute(
-        select(Movie).join(Episode).where(Episode.id == data["episode_id"])
+        select(Movie).join(Episode).where(Episode.id == episode_id)
     )
     movie = result.scalar_one_or_none()
-    res_ep = await session.execute(select(Episode).where(Episode.id == data["episode_id"]))
+    res_ep = await session.execute(select(Episode).where(Episode.id == episode_id))
     episode = res_ep.scalar_one_or_none()
 
     from bot.config import settings
     database_message_id = None
     if settings.DATABASE_CHANNEL_ID and movie and episode:
         try:
-            db_msg = await cb.bot.send_video(
+            db_msg = await message.bot.send_video(
                 chat_id=settings.DATABASE_CHANNEL_ID,
-                video=data["ep_file_id"],
-                caption=f"🎬 {movie.title_uz or movie.title_original}\n🔢 Qism: {episode.episode_number}\n📌 Kod: {movie.code}\n✅ {data['ep_quality']} | {data['ep_language']}"
+                video=file_id,
+                caption=f"🎬 {movie.title_uz or movie.title_original}\n🔢 Qism: {episode.episode_number}\n📌 Kod: {movie.code}\n✅ Auto | uz"
             )
             database_message_id = db_msg.message_id
         except Exception as e:
-            await cb.message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
+            await message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
 
     ep_version_data = {
-        "episode_id": data["episode_id"],
-        "file_id": data["ep_file_id"],
-        "quality": data["ep_quality"],
-        "language": data["ep_language"],
-        "dub_type": data["ep_dub"],
-        "is_premium": is_premium,
+        "episode_id": episode_id,
+        "file_id": file_id,
+        "quality": "Auto",
+        "language": "uz",
+        "dub_type": "professional",
+        "is_premium": False,
         "database_message_id": database_message_id,
     }
 
-    movie_svc = MovieService(session)
     await movie_svc.add_episode_version(ep_version_data)
 
-    await cb.message.answer(
-        f"✅ Qism versiyasi qo'shildi: {data['ep_quality']} | {data['ep_language']}",
+    await message.answer(
+        f"✅ Qism versiyasi qo'shildi: Auto | uz",
         reply_markup=admin_main_kb(),
     )
     await state.clear()
-    await cb.answer()

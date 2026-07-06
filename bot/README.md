@@ -12,7 +12,6 @@ Professional, kengaytiriladigan va real foydalanishga tayyor Telegram kino bot.
 - 💎 VIP obuna tizimi
 - 👥 Referral dasturi
 - 📢 Majburiy kanal obuna
-- 📢 Publik kanalga avtomatik post
 - 🔗 Deep link tizimi (har kino uchun alohida havola)
 - 📥 Kunlik yuklab olish limiti
 - 🖼 Poster watermark (Pillow)
@@ -73,7 +72,6 @@ project/
       search_service.py       # Qidiruv log
       ad_service.py           # Reklama
       poster_service.py       # Pillow watermark
-      public_channel_service.py # Publik kanal post
       stats_service.py        # Statistika
 
     database/

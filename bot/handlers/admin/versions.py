@@ -50,18 +50,9 @@ async def adm_add_version_start(cb: CallbackQuery, state: FSMContext):
 @router.message(AddVersionState.waiting_video, F.video)
 async def adm_version_video(message: Message, state: FSMContext):
     file_id = message.video.file_id
-    await state.update_data(file_id=file_id)
-    await state.set_state(AddVersionState.waiting_quality)
-    await message.answer("📺 Sifatni tanlang:", reply_markup=admin_quality_kb())
-
-
-@router.callback_query(AddVersionState.waiting_quality, F.data.startswith("adm_qual_"))
-async def adm_version_quality(cb: CallbackQuery, state: FSMContext):
-    quality = cb.data.replace("adm_qual_", "")
-    await state.update_data(quality=quality)
+    await state.update_data(file_id=file_id, quality="Auto")
     await state.set_state(AddVersionState.waiting_language)
-    await cb.message.answer("🌐 Tilni tanlang:", reply_markup=admin_language_kb())
-    await cb.answer()
+    await message.answer("🌐 Tilni tanlang:", reply_markup=admin_language_kb())
 
 
 @router.callback_query(AddVersionState.waiting_language, F.data.startswith("adm_lang_"))
@@ -184,18 +175,9 @@ async def adm_episode_video_skip(message: Message, state: FSMContext):
 @router.message(AddEpisodeState.waiting_video, F.video)
 async def adm_episode_video(message: Message, state: FSMContext):
     file_id = message.video.file_id
-    await state.update_data(ep_file_id=file_id)
-    await state.set_state(AddEpisodeState.waiting_quality)
-    await message.answer("📺 Sifatni tanlang:", reply_markup=admin_quality_kb())
-
-
-@router.callback_query(AddEpisodeState.waiting_quality, F.data.startswith("adm_qual_"))
-async def adm_ep_quality(cb: CallbackQuery, state: FSMContext):
-    quality = cb.data.replace("adm_qual_", "")
-    await state.update_data(ep_quality=quality)
+    await state.update_data(ep_file_id=file_id, ep_quality="Auto")
     await state.set_state(AddEpisodeState.waiting_language)
-    await cb.message.answer("🌐 Tilni tanlang:", reply_markup=admin_language_kb())
-    await cb.answer()
+    await message.answer("🌐 Tilni tanlang:", reply_markup=admin_language_kb())
 
 
 @router.callback_query(AddEpisodeState.waiting_language, F.data.startswith("adm_lang_"))

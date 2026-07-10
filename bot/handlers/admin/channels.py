@@ -109,7 +109,7 @@ async def adm_ch_required(cb: CallbackQuery, state: FSMContext, session: AsyncSe
     await cb.answer()
 
 
-@router.callback_query(F.data.startswith("adm_ch_") & ~F.data.startswith("adm_ch_add") & ~F.data.startswith("adm_ch_req"))
+@router.callback_query(F.data.startswith("adm_ch_") & ~F.data.startswith("adm_ch_add") & ~F.data.startswith("adm_ch_req") & ~F.data.startswith("adm_ch_del_"))
 async def adm_channel_detail(cb: CallbackQuery, session: AsyncSession):
     channel_id_str = cb.data.replace("adm_ch_", "")
     if not channel_id_str.isdigit():

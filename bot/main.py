@@ -43,6 +43,8 @@ async def on_startup():
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS title VARCHAR(256);"))
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS description TEXT;"))
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS short_caption TEXT;"))
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0;"))
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS downloads_count INTEGER DEFAULT 0;"))
             await conn.execute(text("ALTER TABLE vip_plans ADD COLUMN IF NOT EXISTS name VARCHAR(128);"))
             await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pending_movie_code VARCHAR(32);"))
         except Exception as e:

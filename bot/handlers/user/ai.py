@@ -27,7 +27,7 @@ async def start_ai_cb(cb: CallbackQuery, state: FSMContext, session: AsyncSessio
 
     await state.set_state(AIState.waiting_query)
     await state.update_data(lang=lang)
-    await cb.message.answer(_("ai_prompt", lang), reply_markup=back_to_menu_kb(lang))
+    await cb.message.answer(_("ai_prompt", lang), reply_markup=back_to_menu_kb())
     await cb.answer()
 
 
@@ -41,7 +41,7 @@ async def start_ai_msg(message: Message, state: FSMContext, session: AsyncSessio
 
     await state.set_state(AIState.waiting_query)
     await state.update_data(lang=lang)
-    await message.answer(_("ai_prompt", lang), reply_markup=back_to_menu_kb(lang))
+    await message.answer(_("ai_prompt", lang), reply_markup=back_to_menu_kb())
 
 
 @router.message(AIState.waiting_query)
@@ -59,7 +59,7 @@ async def process_ai_query(message: Message, state: FSMContext, session: AsyncSe
     movies = result.scalars().all()
     movies_data = []
     for m in movies:
-        title = getattr(m, f"title_{lang}", None) or m.title_original
+        title = m.title or m.title_original
         movies_data.append({
             "code": m.code,
             "title": title,
@@ -78,5 +78,5 @@ async def process_ai_query(message: Message, state: FSMContext, session: AsyncSe
     recommended_movies = [m for m in movies if str(m.code) in codes]
 
     await thinking.delete()
-    await message.answer(ai_response, reply_markup=ai_result_kb(lang, movies=recommended_movies))
+    await message.answer(ai_response, reply_markup=ai_result_kb(movies=recommended_movies))
     await state.clear()

@@ -63,16 +63,12 @@ class VIPService:
 
     async def create_plan(
         self,
-        name_uz: str,
-        name_ru: str,
-        name_en: str,
+        name: str,
         duration_days: int,
         price: float,
     ) -> VIPPlan:
         plan = VIPPlan(
-            name_uz=name_uz,
-            name_ru=name_ru,
-            name_en=name_en,
+            name=name,
             duration_days=duration_days,
             price=price,
         )

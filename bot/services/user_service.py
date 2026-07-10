@@ -2,9 +2,8 @@ from typing import Optional
 from datetime import datetime, date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from bot.database.models import User, Referral
+from bot.database.models import User
 from bot.config import settings
-from bot.utils.helpers import generate_referral_code
 
 
 class UserService:
@@ -28,13 +27,11 @@ class UserService:
             await self.session.commit()
             return user, False
 
-        ref_code = generate_referral_code()
         user = User(
             id=user_id,
             username=username,
             full_name=full_name,
             language=lang,
-            referral_code=ref_code,
         )
         self.session.add(user)
         await self.session.commit()
@@ -126,35 +123,6 @@ class UserService:
         if user:
             user.is_banned = False
             await self.session.commit()
-
-    async def get_referral_count(self, user_id: int) -> int:
-        result = await self.session.execute(
-            select(func.count()).select_from(Referral).where(Referral.referrer_id == user_id)
-        )
-        return result.scalar_one()
-
-    async def process_referral(self, new_user_id: int, referrer_id: int):
-        """Record referral relationship."""
-        # Avoid self-referral
-        if new_user_id == referrer_id:
-            return
-
-        # Check if already referred
-        existing = await self.session.execute(
-            select(Referral).where(Referral.referred_id == new_user_id)
-        )
-        if existing.scalar_one_or_none():
-            return
-
-        referral = Referral(referrer_id=referrer_id, referred_id=new_user_id)
-        self.session.add(referral)
-
-        # Update referred_by on user
-        user = await self.get(new_user_id)
-        if user:
-            user.referred_by = referrer_id
-
-        await self.session.commit()
 
     async def count_users(self) -> int:
         result = await self.session.execute(

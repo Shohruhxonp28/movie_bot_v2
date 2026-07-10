@@ -1,11 +1,12 @@
+import io
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from aiogram.filters import CommandStart, CommandObject
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.services.user_service import UserService
 from bot.services.movie_service import MovieService
 from bot.services.subscription_service import SubscriptionService
-from bot.keyboards.user import main_menu_kb, language_select_kb
+from bot.keyboards.user import main_menu_kb
 from bot.utils.i18n import _, get_movie_caption
 from bot.config import settings
 
@@ -38,14 +39,6 @@ async def cmd_start(
     # Parse deep link argument
     args = command.args or ""
 
-    # Handle referral
-    if args.startswith("ref_"):
-        referrer_id_str = args[4:]
-        if referrer_id_str.isdigit():
-            referrer_id = int(referrer_id_str)
-            if is_new and referrer_id != user_id:
-                await user_svc.process_referral(user_id, referrer_id)
-
     # Notify admins about new user
     if is_new:
         from bot.utils.logger import logger
@@ -56,8 +49,6 @@ async def cmd_start(
             f"🆔 ID: <code>{user_id}</code>\n"
             f"🔗 Username: {user_mention}\n"
         )
-        if args.startswith("ref_"):
-            admin_text += f"👥 Kim orqali: <code>{args[4:]}</code>"
 
         # Send to group
         if settings.ADMIN_GROUP_ID:
@@ -98,14 +89,6 @@ async def cmd_start(
             await deliver_movie(message, movie, user, lang, session, bot)
         return
 
-    # 3. Language selection for new users
-    if is_new or not user.language:
-        await message.answer(
-            _("welcome_new", lang),
-            reply_markup=language_select_kb(),
-        )
-        return
-
     # 4. Deliver pending movie if any
     if user.pending_movie_code:
         code = user.pending_movie_code
@@ -119,7 +102,7 @@ async def cmd_start(
     # 5. Welcome back (main menu)
     await message.answer(
         _("welcome_back", lang),
-        reply_markup=main_menu_kb(lang),
+        reply_markup=main_menu_kb(),
         parse_mode="HTML",
     )
 
@@ -152,7 +135,7 @@ async def check_subscription(cb: CallbackQuery, session: AsyncSession, bot: Bot)
 
     await cb.message.answer(
         _("welcome_back", lang),
-        reply_markup=main_menu_kb(lang),
+        reply_markup=main_menu_kb(),
         parse_mode="HTML",
     )
 
@@ -164,7 +147,7 @@ async def go_main_menu(cb: CallbackQuery, session: AsyncSession):
     lang = user.language if user else "uz"
     await cb.message.answer(
         _("welcome_back", lang),
-        reply_markup=main_menu_kb(lang),
+        reply_markup=main_menu_kb(),
         parse_mode="HTML",
     )
     await cb.answer()
@@ -178,43 +161,113 @@ async def deliver_movie(
     session: AsyncSession,
     bot: Bot,
 ):
-    """Deliver movie files or episode list directly to the user (no movie details post)."""
-    from bot.services.movie_service import MovieService
-    from bot.handlers.user.callbacks import _send_version
-    from bot.keyboards.user import episode_select_kb
-
+    """Deliver movie file directly to the user."""
+    from bot.services.ad_service import AdService
+    from bot.keyboards.user import vip_required_kb
+    from bot.utils.i18n import get_video_caption
+    
+    user_svc = UserService(session)
     movie_svc = MovieService(session)
+    
+    # VIP check
+    if movie.is_vip and not await user_svc.is_vip(user.id):
+        await message.answer(
+            _("vip_required", lang),
+            reply_markup=vip_required_kb(),
+        )
+        return
+
+    # Download limit check
+    if not await user_svc.check_download_limit(user.id):
+        await message.answer(
+            _("download_limit", lang),
+            reply_markup=vip_required_kb(),
+        )
+        return
+
     await movie_svc.increment_views(movie.id)
 
-    if movie.movie_type in ("film", "multfilm"):
-        active_versions = await movie_svc.get_active_versions(movie.id)
-        if not active_versions:
-            await message.answer(_("movie_no_versions", lang))
-            return
+    # If it is serial and has a serial link
+    if movie.movie_type in ("serial", "anime") and movie.serial_link:
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
         
-        # Direct send all active versions
-        for version in active_versions:
-            await _send_version(message, version, user, lang, movie.id, session, bot)
-            
-    elif movie.movie_type in ("serial", "anime"):
-        if movie.serial_link:
-            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-            from bot.config import settings
-            
-            title = movie.title_uz or movie.title_original
-            caption = f"🎬 <b>{title}</b> serialining barcha qismlari joylashgan kanal:\n\n👇 Ko'rish uchun pastdagi tugmani bosing."
-            
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🍿 Ko'rish", url=movie.serial_link)],
-                [InlineKeyboardButton(text="Kinoni uzatish", url=f"https://t.me/{settings.BOT_USERNAME.strip('@')}?start=movie_{movie.code}")]
-            ])
-            await message.answer(caption, reply_markup=kb, parse_mode="HTML")
-            return
+        title = movie.title or movie.title_original
+        caption = f"🎬 <b>{title}</b> serialining barcha qismlari joylashgan kanal:\n\n👇 Ko'rish uchun pastdagi tugmani bosing."
+        
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🍿 Ko'rish", url=movie.serial_link)],
+            [InlineKeyboardButton(text="Kinoni uzatish", url=f"https://t.me/{settings.BOT_USERNAME.strip('@')}?start=movie_{movie.code}")]
+        ])
+        await message.answer(caption, reply_markup=kb, parse_mode="HTML")
+        return
 
-        if not movie.episodes:
-            await message.answer("⚠️ Ushbu serial/anime uchun hali qismlar yuklanmagan.")
-            return
-        await message.answer(
-            _("choose_episode", lang),
-            reply_markup=episode_select_kb(movie.episodes, lang),
+    if not movie.file_id:
+        await message.answer(_("movie_no_versions", lang))
+        return
+
+    caption = get_video_caption(
+        movie=movie,
+        lang=lang,
+        bot_username=settings.BOT_USERNAME,
+        channel_username=settings.PUBLIC_CHANNEL_USERNAME,
+    )
+
+    # Download poster for thumbnail
+    poster_id = movie.poster_file_id
+    thumb = None
+    if poster_id:
+        try:
+            file_info = await bot.get_file(poster_id)
+            if file_info.file_path:
+                dest = io.BytesIO()
+                await bot.download_file(file_info.file_path, dest)
+                dest.seek(0)
+                thumb = BufferedInputFile(dest.read(), filename="thumb.jpg")
+        except Exception:
+            pass
+
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    share_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="Kinoni uzatish",
+            url=f"https://t.me/{settings.BOT_USERNAME.strip('@')}?start=movie_{movie.code}"
+        )]
+    ])
+
+    if movie.database_message_id and settings.DATABASE_CHANNEL_ID:
+        try:
+            await bot.copy_message(
+                chat_id=user.id,
+                from_chat_id=settings.DATABASE_CHANNEL_ID,
+                message_id=movie.database_message_id,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=share_kb,
+            )
+        except Exception:
+            await message.answer_video(
+                video=movie.file_id,
+                caption=caption,
+                thumbnail=thumb,
+                parse_mode="HTML",
+                reply_markup=share_kb,
+            )
+    else:
+        await message.answer_video(
+            video=movie.file_id,
+            caption=caption,
+            thumbnail=thumb,
+            parse_mode="HTML",
+            reply_markup=share_kb,
         )
+
+    await user_svc.increment_downloads(user.id)
+    await movie_svc.log_download(user.id, movie.id)
+
+    # Show ad for non-VIP users
+    if not await user_svc.is_vip(user.id):
+        ad_svc = AdService(session)
+        ad = await ad_svc.get_random_ad()
+        if ad and ad.show_after_download:
+            from bot.handlers.user.callbacks import _send_ad
+            await _send_ad(message, ad)

@@ -25,17 +25,15 @@ async def inline_search(inline_query: InlineQuery, session: AsyncSession):
     import html
     results = []
     for movie in movies:
-        # Use user's language if possible — fallback to uz
-        lang = "uz"
-        title = getattr(movie, f"title_{lang}", None) or movie.title_original
+        title = movie.title or movie.title_original
         year = f" ({movie.year})" if movie.year else ""
-        description = getattr(movie, f"short_caption_{lang}", None) or getattr(movie, f"description_{lang}", None) or ""
+        description = movie.short_caption or movie.description or ""
         description = description[:100] if description else ""
 
         deep_link = f"https://t.me/{settings.BOT_USERNAME}?start=movie_{movie.code}"
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
+        kb = InlineKeyboardMarkup(inline_keyboard=[[[
             InlineKeyboardButton(text="🎬 Botda ko'rish", url=deep_link)
-        ]])
+        ]]])
 
         safe_title = html.escape(title) if title else ""
         safe_description = html.escape(description) if description else ""

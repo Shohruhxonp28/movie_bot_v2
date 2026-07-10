@@ -24,7 +24,7 @@ class PublicChannelService:
 
     def _build_caption(self, movie: Movie) -> str:
         import html
-        title = html.escape(movie.title_uz or movie.title_original or "Nomsiz")
+        title = html.escape(movie.title or movie.title_original or "Nomsiz")
         lines = [f"🎬 Yangi kino!\n"]
         lines.append(f"🎞 Nomi: <b>{title}</b>")
         if movie.year:
@@ -34,7 +34,7 @@ class PublicChannelService:
         if movie.imdb_rating:
             lines.append(f"⭐ IMDb: {movie.imdb_rating}")
         
-        caption = movie.short_caption_uz or movie.description_uz or ""
+        caption = movie.short_caption or movie.description or ""
         if caption:
             lines.append(f"\n📝 {html.escape(caption[:300])}...")
             
@@ -49,7 +49,7 @@ class PublicChannelService:
             kb = self._build_keyboard(movie)
             caption = self._build_caption(movie)
             
-            poster_id = movie.poster_watermarked_file_id or movie.poster_file_id
+            poster_id = movie.poster_file_id
 
             if movie.trailer_type == "video" and movie.trailer_file_id:
                 msg = await self.bot.send_video(
@@ -92,8 +92,7 @@ class PublicChannelService:
             kb = self._build_keyboard(movie)
             caption = self._build_caption(movie)
             
-            has_media = (movie.trailer_type == "video" and movie.trailer_file_id) or \
-                        movie.poster_watermarked_file_id or movie.poster_file_id
+            has_media = (movie.trailer_type == "video" and movie.trailer_file_id) or movie.poster_file_id
 
             if has_media:
                 await self.bot.edit_message_caption(
@@ -113,21 +112,5 @@ class PublicChannelService:
                 )
             return True
         except Exception as e:
-            logger.error(f"Failed to update public channel post: {e}")
-            return False
-
-    async def delete_public_channel_post(self, movie: Movie) -> bool:
-        if not self.channel_id or not movie.public_post_message_id:
-            return False
-        try:
-            await self.bot.delete_message(
-                chat_id=self.channel_id,
-                message_id=movie.public_post_message_id,
-            )
-            movie.public_post_message_id = None
-            movie.public_posted_at = None
-            await self.session.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Failed to delete public channel post: {e}")
+            logger.error(f"Failed to edit public channel post: {e}")
             return False

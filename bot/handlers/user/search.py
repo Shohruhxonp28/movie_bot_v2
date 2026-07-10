@@ -6,10 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.services.user_service import UserService
 from bot.services.movie_service import MovieService
 from bot.services.search_service import SearchService
-from bot.keyboards.user import (
-    search_results_kb, back_to_menu_kb, main_menu_kb,
-    movie_versions_kb, episode_select_kb, movie_actions_kb,
-)
+from bot.keyboards.user import search_results_kb, back_to_menu_kb, main_menu_kb
 from bot.utils.i18n import _, get_movie_caption
 
 router = Router()
@@ -27,7 +24,7 @@ async def start_search_cb(cb: CallbackQuery, state: FSMContext, session: AsyncSe
 
     await state.set_state(SearchState.waiting_query)
     await state.update_data(lang=lang)
-    await cb.message.answer(_("search_prompt", lang), reply_markup=back_to_menu_kb(lang))
+    await cb.message.answer(_("search_prompt", lang), reply_markup=back_to_menu_kb())
     await cb.answer()
 
 
@@ -41,7 +38,7 @@ async def start_search_msg(message: Message, state: FSMContext, session: AsyncSe
 
     await state.set_state(SearchState.waiting_query)
     await state.update_data(lang=lang)
-    await message.answer(_("search_prompt", lang), reply_markup=back_to_menu_kb(lang))
+    await message.answer(_("search_prompt", lang), reply_markup=back_to_menu_kb())
 
 
 @router.message(SearchState.waiting_query)
@@ -59,7 +56,7 @@ async def process_search(message: Message, state: FSMContext, session: AsyncSess
     if not movies:
         await message.answer(
             _("search_not_found", lang),
-            reply_markup=search_results_kb([], lang),
+            reply_markup=search_results_kb([]),
         )
         await state.clear()
         return
@@ -75,7 +72,7 @@ async def process_search(message: Message, state: FSMContext, session: AsyncSess
     else:
         # Show list
         prefix = _("search_results", lang) if search_type == "exact" else _("search_fuzzy_results", lang)
-        await message.answer(prefix, reply_markup=search_results_kb(movies, lang))
+        await message.answer(prefix, reply_markup=search_results_kb(movies))
 
     await state.clear()
 
@@ -97,50 +94,3 @@ async def open_movie_from_list(cb: CallbackQuery, session: AsyncSession, bot: Bo
     from bot.handlers.user.start import deliver_movie
     await deliver_movie(cb.message, movie, user, lang, session, bot)
     await cb.answer()
-
-
-from aiogram.filters import StateFilter
-
-@router.message(F.text, StateFilter(None))
-async def global_text_handler(message: Message, session: AsyncSession, bot: Bot):
-    query = message.text.strip()
-    if query.startswith("/"):
-        return
-
-    # Check if this is a main menu button to prevent hijack
-    from bot.utils.i18n import TRANSLATIONS
-    menu_buttons = set()
-    for key, translation in TRANSLATIONS.items():
-        if key.startswith("btn_"):
-            for lang, val in translation.items():
-                menu_buttons.add(val)
-                
-    if query in menu_buttons:
-        return
-
-    user_svc = UserService(session)
-    movie_svc = MovieService(session)
-
-    user = await user_svc.get(message.from_user.id)
-    lang = user.language if user else "uz"
-
-    # 1. First, check if exact code match
-    movie = await movie_svc.get_by_code(query)
-    if movie:
-        from bot.handlers.user.start import deliver_movie
-        await deliver_movie(message, movie, user, lang, session, bot)
-        return
-
-    # 2. Otherwise search by title/smart search
-    movies, search_type = await movie_svc.smart_search(query)
-    if not movies:
-        await message.answer(_("search_not_found", lang))
-        return
-
-    if len(movies) == 1 and search_type in ("code", "exact"):
-        movie = movies[0]
-        from bot.handlers.user.start import deliver_movie
-        await deliver_movie(message, movie, user, lang, session, bot)
-    else:
-        prefix = _("search_results", lang) if search_type == "exact" else _("search_fuzzy_results", lang)
-        await message.answer(prefix, reply_markup=search_results_kb(movies, lang))

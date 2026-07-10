@@ -33,29 +33,51 @@ class AddSerialState(StatesGroup):
 
 # ─── Movie List ───────────────────────────────────────────────────────────────
 
-@router.callback_query(F.data == "adm_movies")
+@router.callback_query(F.data.startswith("adm_movies"))
 async def adm_movie_list(cb: CallbackQuery, session: AsyncSession):
+    parts = cb.data.split("_")
+    page = 1
+    if len(parts) > 2 and parts[2] == "page":
+        try:
+            page = int(parts[3])
+        except (IndexError, ValueError):
+            page = 1
+
     movie_svc = MovieService(session)
-    movies = await movie_svc.get_all_movies(limit=20)
+    limit = 10
+    offset = (page - 1) * limit
+    movies = await movie_svc.get_all_movies(limit=limit, offset=offset)
     total = await movie_svc.count_movies()
+    import math
+    total_pages = math.ceil(total / limit) or 1
 
     if not movies:
         text = "🎬 Bazada hech qanday kino yo'q."
     else:
-        lines = [f"🎬 <b>Kinolar ro'yxati</b> (jami: {total})\n"]
-        for m in movies[:15]:
+        lines = [f"🎬 <b>Kinolar ro'yxati</b> (Jami: {total}, Sahifa: {page}/{total_pages})\n"]
+        for m in movies:
             title = m.title or m.title_original
             lines.append(f"• [{m.code}] {title} ({m.year or '?'})")
         text = "\n".join(lines)
 
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     buttons = []
-    for m in movies[:10]:
+    for m in movies:
         title = m.title or m.title_original
         buttons.append([InlineKeyboardButton(
             text=f"🎬 [{m.code}] {title[:30]}",
             callback_data=f"adm_movie_{m.id}",
         )])
+
+    # Pagination controls
+    pagination_row = []
+    if page > 1:
+        pagination_row.append(InlineKeyboardButton(text="◀️ Orqaga", callback_data=f"adm_movies_page_{page - 1}"))
+    pagination_row.append(InlineKeyboardButton(text=f"📄 {page}/{total_pages}", callback_data="noop"))
+    if page < total_pages:
+        pagination_row.append(InlineKeyboardButton(text="▶️ Keyingi", callback_data=f"adm_movies_page_{page + 1}"))
+    buttons.append(pagination_row)
+
     buttons.append([InlineKeyboardButton(text="➕ Yangi kino", callback_data="adm_add_movie")])
     buttons.append([InlineKeyboardButton(text="◀️ Orqaga", callback_data="adm_back")])
 
@@ -63,7 +85,7 @@ async def adm_movie_list(cb: CallbackQuery, session: AsyncSession):
     await cb.answer()
 
 
-@router.callback_query(F.data.startswith("adm_movie_") & ~F.data.startswith("adm_movie_edit_") & ~F.data.startswith("adm_movie_delete_"))
+@router.callback_query(F.data.startswith("adm_movie_") & ~F.data.startswith("adm_movie_edit_") & ~F.data.startswith("adm_movie_delete_") & ~F.data.startswith("adm_movies"))
 async def adm_movie_detail(cb: CallbackQuery, session: AsyncSession):
     movie_id = int(cb.data.split("_")[-1])
     movie_svc = MovieService(session)

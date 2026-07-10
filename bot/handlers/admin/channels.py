@@ -45,7 +45,10 @@ async def adm_channels_list(cb: CallbackQuery, session: AsyncSession):
 @router.callback_query(F.data == "adm_ch_add")
 async def adm_channel_add_start(cb: CallbackQuery, state: FSMContext):
     await state.set_state(AddChannelState.waiting_name)
-    await cb.message.answer("📝 Kanal nomini yozing:")
+    await cb.message.answer(
+        "📝 Kanal nomini yozing:\n\n"
+        "❌ Bekor qilish uchun /cancel deb yozing."
+    )
     await cb.answer()
 
 
@@ -53,7 +56,10 @@ async def adm_channel_add_start(cb: CallbackQuery, state: FSMContext):
 async def adm_ch_name(message: Message, state: FSMContext):
     await state.update_data(name=message.text.strip())
     await state.set_state(AddChannelState.waiting_channel_id)
-    await message.answer("🆔 Kanal ID sini yozing (masalan: -1001234567890):")
+    await message.answer(
+        "🆔 Kanal ID sini yozing (masalan: -1001234567890):\n\n"
+        "❌ Bekor qilish uchun /cancel deb yozing."
+    )
 
 
 @router.message(AddChannelState.waiting_channel_id)

@@ -1,6 +1,7 @@
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from bot.utils.filters import IsAdmin
 from bot.keyboards.admin import admin_main_kb
@@ -9,6 +10,20 @@ from bot.services.stats_service import StatsService
 router = Router()
 router.message.filter(IsAdmin())
 router.callback_query.filter(IsAdmin())
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("❌ Harakat bekor qilindi.", reply_markup=admin_main_kb())
+
+
+@router.message(CommandStart())
+async def cmd_start_admin(message: Message, state: FSMContext, session: AsyncSession, bot: Bot, command):
+    await state.clear()
+    # Delegate to user start handler so they get cleared of FSM and see the main menu
+    from bot.handlers.user.start import cmd_start
+    await cmd_start(message, command, session, bot, state)
 
 
 @router.message(Command("admin"))

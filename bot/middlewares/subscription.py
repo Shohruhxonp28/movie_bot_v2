@@ -41,9 +41,18 @@ class SubscriptionMiddleware(BaseMiddleware):
         if isinstance(event, Message) and event.text and event.text.strip().startswith("/start"):
             return await handler(event, data)
 
-        # Skip subscription check for certain callbacks (e.g. check subscription, lang select)
+        # Skip subscription check if user is uploading VIP payment check
+        from aiogram.fsm.context import FSMContext
+        state: FSMContext = data.get("state")
+        if state:
+            current_state = await state.get_state()
+            if current_state == "VIPCheckState:waiting_check":
+                return await handler(event, data)
+
+        # Skip subscription check for certain callbacks (e.g. check subscription, lang select, VIP flow)
         if isinstance(event, CallbackQuery) and event.data:
-            if event.data == "check_subscription" or event.data.startswith("lang_"):
+            exempt_prefixes = ("lang_", "vip_plan_", "copy_price_", "copy_card_", "vip_send_check_")
+            if event.data == "check_subscription" or event.data == "menu_vip" or event.data.startswith(exempt_prefixes):
                 return await handler(event, data)
 
         session: AsyncSession = data.get("session")

@@ -25,8 +25,51 @@ from bot.handlers.admin.broadcast import router as broadcast_router
 from bot.handlers.inline.inline import router as inline_router
 
 
+async def check_expired_vips_loop():
+    from bot.database.session import async_session_maker
+    from sqlalchemy import select
+    from bot.database.models import User
+    from datetime import datetime
+    from bot.loader import bot
+    import logging
+
+    while True:
+        try:
+            async with async_session_maker() as session:
+                now = datetime.now()
+                # Find users where is_vip is True but vip_until is in the past
+                result = await session.execute(
+                    select(User).where(User.is_vip == True, User.vip_until < now)
+                )
+                expired_users = result.scalars().all()
+
+                for user in expired_users:
+                    user.is_vip = False
+                    await session.commit()
+                    logging.info(f"VIP expired for user {user.id}. Revoked.")
+                    
+                    try:
+                        await bot.send_message(
+                            user.id,
+                            "⚠️ <b>VIP obunangiz muddati yakunlandi!</b>\n\n"
+                            "Bot imkoniyatlaridan (reklamasiz ko'rish, kanallarsiz yuklash, "
+                            "vip kinolar, cheksiz limit) foydalanishni davom ettirish uchun "
+                            "VIP obunangizni yangilang! 💎",
+                            parse_mode="HTML"
+                        )
+                    except Exception as e:
+                        logging.warning(f"Failed to notify user {user.id} of VIP expiry: {e}")
+
+        except Exception as e:
+            logging.error(f"Error in check_expired_vips_loop: {e}")
+
+        # Sleep for 1 hour
+        await asyncio.sleep(3600)
+
+
 async def on_startup():
     logging.info("Starting KinoBot...")
+    asyncio.create_task(check_expired_vips_loop())
     
     # Create DB tables and enable extensions
     from bot.database.session import engine

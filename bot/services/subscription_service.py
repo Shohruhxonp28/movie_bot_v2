@@ -11,8 +11,6 @@ from bot.utils.i18n import _
 from cachetools import TTLCache
 import time
 
-# Cache for subscription status: {user_id: (is_subscribed, timestamp)}
-# TTL: 120 seconds (2 minutes)
 sub_cache = TTLCache(maxsize=10000, ttl=120)
 
 
@@ -28,14 +26,9 @@ class SubscriptionService:
         return result.scalars().all()
 
     async def get_unsubscribed_channels(self, user_id: int) -> List[Channel]:
-        # Check cache first
         if user_id in sub_cache:
-            # If they were fully subscribed, return empty list
             if sub_cache[user_id] is True:
                 return []
-            # Note: We only cache "True" (fully subscribed) to avoid blocking users
-            # if they subscribe and we still have them as "unsubscribed" in cache.
-            # But for "lag" issues, catching the "subscribed" state is most important.
 
         channels = await self.get_required_channels()
         if not channels:
@@ -52,11 +45,9 @@ class SubscriptionService:
                 if member.status in ("left", "kicked", "restricted"):
                     not_subscribed.append(channel)
             except Exception:
-                # If error (e.g. bot not admin), assume not subscribed or skip?
-                # For safety, we assume not subscribed if it's required
+                # If bot cannot fetch status, treat as not subscribed
                 not_subscribed.append(channel)
         
-        # Cache the result if they are fully subscribed
         if not not_subscribed:
             sub_cache[user_id] = True
             
@@ -73,12 +64,30 @@ class SubscriptionService:
         lang: str = "uz",
     ):
         buttons = []
-        for i, ch in enumerate(channels, 1):
-            url = ch.invite_link or f"https://t.me/{ch.username.lstrip('@')}" if ch.username else "#"
+        for ch in channels:
+            url = ch.invite_link or (f"https://t.me/{ch.username.lstrip('@')}" if ch.username else "")
+            url = url.strip()
+            
+            # Format url correctly
+            if url.startswith("@"):
+                url = f"https://t.me/{url[1:]}"
+            elif url and not (url.startswith("http://") or url.startswith("https://") or url.startswith("tg://")):
+                url = f"https://{url}"
+            
+            if not url:
+                url = "https://t.me"
+
             buttons.append([InlineKeyboardButton(text=f"📢 {ch.name}", url=url)])
+            
         buttons.append([InlineKeyboardButton(
             text=_("btn_check_sub", lang),
             callback_data="check_subscription"
+        )])
+        
+        # Add VIP obuna button at the very bottom
+        buttons.append([InlineKeyboardButton(
+            text="💎 VIP obuna bo'lish",
+            callback_data="menu_vip"
         )])
 
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -87,5 +96,8 @@ class SubscriptionService:
         if isinstance(event, Message):
             await event.answer(text, reply_markup=kb)
         elif isinstance(event, CallbackQuery):
-            await event.message.answer(text, reply_markup=kb)
+            try:
+                await event.message.edit_text(text, reply_markup=kb)
+            except Exception:
+                await event.message.answer(text, reply_markup=kb)
             await event.answer()

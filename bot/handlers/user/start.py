@@ -115,7 +115,8 @@ async def check_subscription(cb: CallbackQuery, session: AsyncSession, bot: Bot)
     lang = user.language if user else "uz"
 
     sub_svc = SubscriptionService(session, bot)
-    not_subscribed = await sub_svc.get_unsubscribed_channels(user_id)
+    is_vip = await user_svc.is_vip(user_id)
+    not_subscribed = [] if is_vip else await sub_svc.get_unsubscribed_channels(user_id)
 
     if not_subscribed:
         await cb.answer(_("sub_not_completed", lang), show_alert=True)

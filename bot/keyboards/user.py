@@ -25,9 +25,17 @@ def back_to_menu_kb() -> InlineKeyboardMarkup:
 def subscription_kb(channels) -> InlineKeyboardMarkup:
     buttons = []
     for ch in channels:
-        url = ch.invite_link or (f"https://t.me/{ch.username.lstrip('@')}" if ch.username else "#")
+        url = ch.invite_link or (f"https://t.me/{ch.username.lstrip('@')}" if ch.username else "")
+        url = url.strip()
+        if url.startswith("@"):
+            url = f"https://t.me/{url[1:]}"
+        elif url and not (url.startswith("http://") or url.startswith("https://") or url.startswith("tg://")):
+            url = f"https://{url}"
+        if not url:
+            url = "https://t.me"
         buttons.append([InlineKeyboardButton(text=f"📢 {ch.name}", url=url)])
     buttons.append([InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_subscription")])
+    buttons.append([InlineKeyboardButton(text="💎 VIP obuna bo'lish", callback_data="menu_vip")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 

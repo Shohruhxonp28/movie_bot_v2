@@ -33,6 +33,28 @@ async def on_startup():
     from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+        
+        # Alter tables to add new columns if they do not exist
+        try:
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS file_id VARCHAR(256);"))
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS database_message_id BIGINT;"))
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS serial_link VARCHAR(512);"))
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS is_vip BOOLEAN DEFAULT FALSE;"))
+            await conn.execute(text("ALTER TABLE vip_plans ADD COLUMN IF NOT EXISTS name VARCHAR(128);"))
+            await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pending_movie_code VARCHAR(32);"))
+        except Exception as e:
+            logging.warning(f"Note: Table alter update error: {e}")
+
+        # Migrate name_uz to name in vip_plans if name is null
+        try:
+            result = await conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='vip_plans' AND column_name='name_uz';"
+            ))
+            if result.fetchone():
+                await conn.execute(text("UPDATE vip_plans SET name = name_uz WHERE name IS NULL;"))
+        except Exception as e:
+            logging.warning(f"Note: Migration of vip_plans.name error: {e}")
             
     await create_tables()
     logging.info("Database tables updated and extensions enabled.")

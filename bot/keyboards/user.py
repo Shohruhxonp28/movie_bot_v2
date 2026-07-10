@@ -73,3 +73,27 @@ def ai_result_kb(movies=None) -> InlineKeyboardMarkup:
     buttons.append([InlineKeyboardButton(text="🔍 Qidiruv", callback_data="menu_search")])
     buttons.append([InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def movies_pagination_kb(movies, page: int, total_pages: int) -> InlineKeyboardMarkup:
+    buttons = []
+    for m in movies:
+        title = m.title or m.title_original
+        year = f" — {m.year}" if m.year else ""
+        buttons.append([InlineKeyboardButton(
+            text=f"🎬 {title}{year}",
+            callback_data=f"movie_open_{m.id}",
+        )])
+        
+    pagination_row = []
+    if page > 1:
+        pagination_row.append(InlineKeyboardButton(text="◀️ Orqaga", callback_data=f"movies_page_{page - 1}"))
+    
+    pagination_row.append(InlineKeyboardButton(text=f"📄 {page}/{total_pages}", callback_data="noop"))
+    
+    if page < total_pages:
+        pagination_row.append(InlineKeyboardButton(text="▶️ Keyingi", callback_data=f"movies_page_{page + 1}"))
+        
+    buttons.append(pagination_row)
+    buttons.append([InlineKeyboardButton(text="🏠 Bosh menyu", callback_data="go_main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

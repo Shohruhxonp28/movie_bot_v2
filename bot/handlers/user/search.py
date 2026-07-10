@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.services.user_service import UserService
 from bot.services.movie_service import MovieService
 from bot.services.search_service import SearchService
-from bot.keyboards.user import search_results_kb, back_to_menu_kb, main_menu_kb
+from bot.keyboards.user import search_results_kb, back_to_menu_kb, main_menu_kb, movies_pagination_kb
 from bot.utils.i18n import _, get_movie_caption
 
 router = Router()
@@ -15,16 +15,45 @@ router = Router()
 @router.message(F.text == "🎬 Kinolar")
 async def show_latest_movies(message: Message, session: AsyncSession):
     movie_svc = MovieService(session)
-    movies = await movie_svc.get_all_movies(limit=15)
+    limit = 8
+    movies = await movie_svc.get_all_movies(limit=limit, offset=0)
+    total_count = await movie_svc.count_movies()
     
     if not movies:
         await message.answer("🎬 Hozircha botga kinolar joylanmagan.")
         return
         
+    import math
+    total_pages = math.ceil(total_count / limit) or 1
+    
     await message.answer(
-        "🎬 Oxirgi yuklangan kinolar ro'yxati:",
-        reply_markup=search_results_kb(movies),
+        "🎬 Kinolar ro'yxati:",
+        reply_markup=movies_pagination_kb(movies, 1, total_pages),
     )
+
+
+@router.callback_query(F.data.startswith("movies_page_"))
+async def process_movies_page(cb: CallbackQuery, session: AsyncSession):
+    page = int(cb.data.split("_")[-1])
+    
+    movie_svc = MovieService(session)
+    limit = 8
+    offset = (page - 1) * limit
+    
+    movies = await movie_svc.get_all_movies(limit=limit, offset=offset)
+    total_count = await movie_svc.count_movies()
+    
+    import math
+    total_pages = math.ceil(total_count / limit) or 1
+    
+    try:
+        await cb.message.edit_text(
+            "🎬 Kinolar ro'yxati:",
+            reply_markup=movies_pagination_kb(movies, page, total_pages)
+        )
+    except Exception:
+        pass
+    await cb.answer()
 
 
 class SearchState(StatesGroup):

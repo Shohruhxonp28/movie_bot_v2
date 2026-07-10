@@ -12,6 +12,21 @@ from bot.utils.i18n import _, get_movie_caption
 router = Router()
 
 
+@router.message(F.text == "🎬 Kinolar")
+async def show_latest_movies(message: Message, session: AsyncSession):
+    movie_svc = MovieService(session)
+    movies = await movie_svc.get_all_movies(limit=15)
+    
+    if not movies:
+        await message.answer("🎬 Hozircha botga kinolar joylanmagan.")
+        return
+        
+    await message.answer(
+        "🎬 Oxirgi yuklangan kinolar ro'yxati:",
+        reply_markup=search_results_kb(movies),
+    )
+
+
 class SearchState(StatesGroup):
     waiting_query = State()
 

@@ -9,7 +9,7 @@ def main_menu_kb() -> ReplyKeyboardMarkup:
         keyboard=[
             [
                 KeyboardButton(text="🔍 Qidiruv"),
-                KeyboardButton(text="💎 VIP obuna"),
+                KeyboardButton(text="🎬 Kinolar"),
             ]
         ],
         resize_keyboard=True,

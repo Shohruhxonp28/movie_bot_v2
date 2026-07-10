@@ -9,7 +9,7 @@ from sqlalchemy import select
 from bot.database.models import Channel
 from bot.utils.i18n import _
 from cachetools import TTLCache
-import time
+import logging
 
 sub_cache = TTLCache(maxsize=10000, ttl=120)
 
@@ -38,14 +38,28 @@ class SubscriptionService:
         not_subscribed = []
         for channel in channels:
             try:
+                ch_id = channel.channel_id.strip()
+                if ch_id.startswith("-") or ch_id.isdigit():
+                    chat_id = int(ch_id)
+                else:
+                    if not ch_id.startswith("@"):
+                        chat_id = f"@{ch_id}"
+                    else:
+                        chat_id = ch_id
+
                 member = await self.bot.get_chat_member(
-                    chat_id=int(channel.channel_id),
+                    chat_id=chat_id,
                     user_id=user_id
                 )
                 if member.status in ("left", "kicked", "restricted"):
                     not_subscribed.append(channel)
-            except Exception:
-                # If bot cannot fetch status, treat as not subscribed
+            except Exception as e:
+                logging.error(
+                    f"⚠️ OBUANANI TEKSHIRIShDA XATOLIK!\n"
+                    f"Kanal: '{channel.name}' (Kiritilgan ID: {channel.channel_id})\n"
+                    f"Xatolik: {e}\n"
+                    f"TAVSIYA: Bot ushbu kanalga a'zo/admin qilinganini va ID to'g'ri yozilganini tekshiring!"
+                )
                 not_subscribed.append(channel)
         
         if not not_subscribed:
@@ -84,7 +98,6 @@ class SubscriptionService:
             callback_data="check_subscription"
         )])
         
-        # Add VIP obuna button at the very bottom
         buttons.append([InlineKeyboardButton(
             text="💎 VIP obuna bo'lish",
             callback_data="menu_vip"

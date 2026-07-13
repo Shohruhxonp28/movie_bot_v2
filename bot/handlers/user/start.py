@@ -202,7 +202,7 @@ async def deliver_movie(
         await message.answer(caption, reply_markup=kb, parse_mode="HTML")
         return
 
-    if not movie.file_id:
+    if not movie.file_id and not movie.database_message_id:
         await message.answer(_("movie_no_versions", lang))
         return
 
@@ -246,6 +246,18 @@ async def deliver_movie(
                 reply_markup=share_kb,
             )
         except Exception:
+            if movie.file_id:
+                await message.answer_video(
+                    video=movie.file_id,
+                    caption=caption,
+                    thumbnail=thumb,
+                    parse_mode="HTML",
+                    reply_markup=share_kb,
+                )
+            else:
+                await message.answer(_("movie_no_versions", lang))
+    else:
+        if movie.file_id:
             await message.answer_video(
                 video=movie.file_id,
                 caption=caption,
@@ -253,14 +265,8 @@ async def deliver_movie(
                 parse_mode="HTML",
                 reply_markup=share_kb,
             )
-    else:
-        await message.answer_video(
-            video=movie.file_id,
-            caption=caption,
-            thumbnail=thumb,
-            parse_mode="HTML",
-            reply_markup=share_kb,
-        )
+        else:
+            await message.answer(_("movie_no_versions", lang))
 
     await user_svc.increment_downloads(user.id)
     await movie_svc.log_download(user.id, movie.id)

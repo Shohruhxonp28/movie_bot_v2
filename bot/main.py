@@ -74,13 +74,16 @@ async def on_startup():
     # Create DB tables and enable extensions
     from bot.database.session import engine
     from sqlalchemy import text
+    # 1. Enable extension
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
-        
-        # Alter tables to add new columns if they do not exist
+
+    # 2. Alter movies table
+    async with engine.begin() as conn:
         try:
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS file_id VARCHAR(256);"))
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS database_message_id BIGINT;"))
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS code VARCHAR(32);"))
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS serial_link VARCHAR(512);"))
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS is_vip BOOLEAN DEFAULT FALSE;"))
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS title VARCHAR(256);"))
@@ -88,12 +91,25 @@ async def on_startup():
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS short_caption TEXT;"))
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0;"))
             await conn.execute(text("ALTER TABLE movies ADD COLUMN IF NOT EXISTS downloads_count INTEGER DEFAULT 0;"))
+        except Exception as e:
+            logging.warning(f"Note: Movies table alter update error: {e}")
+
+    # 3. Alter vip_plans table
+    async with engine.begin() as conn:
+        try:
             await conn.execute(text("ALTER TABLE vip_plans ADD COLUMN IF NOT EXISTS name VARCHAR(128);"))
+        except Exception as e:
+            logging.warning(f"Note: Vip_plans table alter update error: {e}")
+
+    # 4. Alter users table
+    async with engine.begin() as conn:
+        try:
             await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pending_movie_code VARCHAR(32);"))
         except Exception as e:
-            logging.warning(f"Note: Table alter update error: {e}")
+            logging.warning(f"Note: Users table alter update error: {e}")
 
-        # Migrate name_uz to name in vip_plans if name is null
+    # 5. Migrate name_uz to name in vip_plans
+    async with engine.begin() as conn:
         try:
             result = await conn.execute(text(
                 "SELECT column_name FROM information_schema.columns "
@@ -104,7 +120,8 @@ async def on_startup():
         except Exception as e:
             logging.warning(f"Note: Migration of vip_plans.name error: {e}")
 
-        # Migrate movies translation fields to single fields if they are null
+    # 6. Migrate movies translation fields
+    async with engine.begin() as conn:
         try:
             result = await conn.execute(text(
                 "SELECT column_name FROM information_schema.columns "
@@ -116,6 +133,26 @@ async def on_startup():
                 await conn.execute(text("UPDATE movies SET short_caption = short_caption_uz WHERE short_caption IS NULL;"))
         except Exception as e:
             logging.warning(f"Note: Migration of movies fields error: {e}")
+
+    # 7. Populate code with id if null
+    async with engine.begin() as conn:
+        try:
+            await conn.execute(text("UPDATE movies SET code = CAST(id AS VARCHAR(32)) WHERE code IS NULL;"))
+        except Exception as e:
+            logging.warning(f"Note: Populating code column error: {e}")
+
+    # 8. Migrate video_file_id to file_id
+    async with engine.begin() as conn:
+        try:
+            result = await conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='movies' AND column_name='video_file_id';"
+            ))
+            if result.fetchone():
+                await conn.execute(text("UPDATE movies SET file_id = video_file_id WHERE file_id IS NULL;"))
+                logging.info("Migrated video_file_id to file_id for existing movies.")
+        except Exception as e:
+            logging.warning(f"Note: Migration of video_file_id error: {e}")
             
     await create_tables()
     logging.info("Database tables updated and extensions enabled.")

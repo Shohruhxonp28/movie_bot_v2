@@ -8,6 +8,7 @@ def admin_main_kb() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="➕ Kino qo'shish", callback_data="adm_add_movie"),
+            InlineKeyboardButton(text="➕ Serial qo'shish", callback_data="adm_add_serial"),
         ],
         [
             InlineKeyboardButton(text="📺 Kanallar", callback_data="adm_channels"),

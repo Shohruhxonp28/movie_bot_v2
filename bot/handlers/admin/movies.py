@@ -187,6 +187,57 @@ async def adm_cancel(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
+# ─── Add Serial ───────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "adm_add_serial")
+async def adm_add_serial_start(cb: CallbackQuery, state: FSMContext):
+    await state.set_state(AddSerialState.title)
+    await cb.message.edit_text(
+        "📝 Serial nomini kiriting:",
+        reply_markup=admin_back_kb(),
+    )
+    await cb.answer()
+
+
+@router.message(AddSerialState.title)
+async def adm_serial_title(message: Message, state: FSMContext):
+    await state.update_data(title=message.text.strip())
+    await state.set_state(AddSerialState.channel_link)
+    await message.answer("🔗 Serial qismlari joylashgan kanal havolasini (linkini) kiriting:")
+
+
+@router.message(AddSerialState.channel_link)
+async def adm_serial_link(message: Message, state: FSMContext, session: AsyncSession):
+    link = message.text.strip()
+    data = await state.get_data()
+    
+    movie_svc = MovieService(session)
+    code = await movie_svc.get_next_movie_code()
+    movie_data = {
+        "code": code,
+        "movie_type": "serial",
+        "title_original": data.get("title"),
+        "title": data.get("title"),
+        "serial_link": link,
+        "description": None,
+        "poster_file_id": None,
+        "file_id": None,
+        "is_vip": False,
+    }
+    
+    await movie_svc.create_movie(movie_data)
+    await state.clear()
+    
+    await message.answer(
+        f"✅ <b>Serial muvaffaqiyatli saqlandi!</b>\n"
+        f"🎬 Nomi: <b>{data.get('title')}</b>\n"
+        f"📌 Kod: <code>{code}</code>\n"
+        f"🔗 Kanal havolasi: {link}",
+        parse_mode="HTML",
+        reply_markup=admin_main_kb(),
+    )
+
+
 # ─── Delete movie ─────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("adm_movie_delete_"))

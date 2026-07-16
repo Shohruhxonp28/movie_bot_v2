@@ -18,7 +18,7 @@ from bot.handlers.admin.admin import router as admin_router
 from bot.handlers.admin.movies import router as movies_router
 from bot.handlers.admin.channels import router as channels_router
 from bot.handlers.admin.vip import router as vip_admin_router
-from bot.handlers.admin.ads import router as ads_router
+
 from bot.handlers.admin.broadcast import router as broadcast_router
 
 # Inline handler
@@ -201,7 +201,7 @@ def register_routers():
     dp.include_router(movies_router)
     dp.include_router(channels_router)
     dp.include_router(vip_admin_router)
-    dp.include_router(ads_router)
+
     dp.include_router(broadcast_router)
 
     # User routers

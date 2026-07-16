@@ -14,7 +14,6 @@ def admin_main_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="💎 VIP", callback_data="adm_vip"),
         ],
         [
-            InlineKeyboardButton(text="📢 Reklama", callback_data="adm_ads"),
             InlineKeyboardButton(text="📊 Statistika", callback_data="adm_stats"),
         ],
         [

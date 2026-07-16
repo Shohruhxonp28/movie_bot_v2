@@ -10,13 +10,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     BOT_USERNAME: str
 
-    # Gemini
-    GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-1.5-flash"
 
     # Channels
-    PUBLIC_CHANNEL_ID: str = ""
-    PUBLIC_CHANNEL_USERNAME: str = ""
     MAIN_CHANNEL_ID: str = ""
     MAIN_CHANNEL_USERNAME: str = ""
     DATABASE_CHANNEL_ID: str = ""
@@ -30,11 +25,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # Settings
-    WATERMARK_TEXT: str = "@kinobot"
-    DEFAULT_LANGUAGE: str = "uz"
     MAX_SEARCH_RESULTS: int = 10
-    DAILY_DOWNLOAD_LIMIT: int = 5
-    VIP_DAILY_LIMIT: int = 50
 
     class Config:
         env_file = ".env"

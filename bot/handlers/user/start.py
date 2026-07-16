@@ -188,22 +188,8 @@ async def deliver_movie(
 
     await movie_svc.increment_views(movie.id)
 
-    # If it is serial and has a serial link
-    if movie.movie_type in ("serial", "anime") and movie.serial_link:
-        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-        
-        title = movie.title or movie.title_original
-        caption = f"🎬 <b>{title}</b> serialining barcha qismlari joylashgan kanal:\n\n👇 Ko'rish uchun pastdagi tugmani bosing."
-        
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🍿 Ko'rish", url=movie.serial_link)],
-            [InlineKeyboardButton(text="Kinoni uzatish", url=f"https://t.me/{settings.BOT_USERNAME.strip('@')}?start=movie_{movie.code}")]
-        ])
-        await message.answer(caption, reply_markup=kb, parse_mode="HTML")
-        return
-
     if not movie.file_id and not movie.database_message_id:
-        await message.answer(_("movie_no_versions", lang))
+        await message.answer(_("movie_not_uploaded", lang))
         return
 
     caption = get_video_caption(
@@ -255,7 +241,7 @@ async def deliver_movie(
                     reply_markup=share_kb,
                 )
             else:
-                await message.answer(_("movie_no_versions", lang))
+                await message.answer(_("movie_not_uploaded", lang))
     else:
         if movie.file_id:
             await message.answer_video(
@@ -266,7 +252,7 @@ async def deliver_movie(
                 reply_markup=share_kb,
             )
         else:
-            await message.answer(_("movie_no_versions", lang))
+            await message.answer(_("movie_not_uploaded", lang))
 
     await user_svc.increment_downloads(user.id)
     await movie_svc.log_download(user.id, movie.id)

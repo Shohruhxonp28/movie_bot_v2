@@ -20,10 +20,7 @@ router.callback_query.filter(IsAdmin())
 
 class AddMovieState(StatesGroup):
     waiting_title = State()
-    waiting_description = State()
-    waiting_poster = State()
     waiting_video = State()
-    waiting_is_vip = State()
 
 
 class AddSerialState(StatesGroup):
@@ -131,42 +128,13 @@ async def adm_add_movie_start(cb: CallbackQuery, state: FSMContext):
 @router.message(AddMovieState.waiting_title)
 async def adm_add_movie_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text.strip())
-    await state.set_state(AddMovieState.waiting_description)
-    await message.answer("📝 Kino tavsifini (description) kiriting yoki /skip:")
-
-
-@router.message(AddMovieState.waiting_description)
-async def adm_add_movie_description(message: Message, state: FSMContext):
-    desc = None if message.text.strip() == "/skip" else message.text.strip()
-    await state.update_data(description=desc)
-    await state.set_state(AddMovieState.waiting_poster)
-    await message.answer("🖼 Rasm formatida poster yuboring yoki /skip:")
-
-
-@router.message(AddMovieState.waiting_poster)
-async def adm_add_movie_poster(message: Message, state: FSMContext):
-    if message.text == "/skip":
-        await state.update_data(poster_file_id=None)
-    elif message.photo:
-        await state.update_data(poster_file_id=message.photo[-1].file_id)
-    else:
-        await message.answer("❌ Iltimos, poster rasmini yuboring yoki /skip deb yozing.")
-        return
-
     await state.set_state(AddMovieState.waiting_video)
     await message.answer("📹 Video fayl yuboring:")
 
 
 @router.message(AddMovieState.waiting_video, F.video)
-async def adm_add_movie_video(message: Message, state: FSMContext):
-    await state.update_data(file_id=message.video.file_id)
-    await state.set_state(AddMovieState.waiting_is_vip)
-    await message.answer("💎 Ushbu kino faqat VIP a'zolar uchunmi?", reply_markup=admin_yes_no_kb())
-
-
-@router.callback_query(AddMovieState.waiting_is_vip, F.data.in_({"adm_yes", "adm_no"}))
-async def adm_add_movie_is_vip(cb: CallbackQuery, state: FSMContext, session: AsyncSession, bot: Bot):
-    is_vip = cb.data == "adm_yes"
+async def adm_add_movie_video(message: Message, state: FSMContext, session: AsyncSession, bot: Bot):
+    file_id = message.video.file_id
     data = await state.get_data()
     await state.clear()
 
@@ -178,10 +146,10 @@ async def adm_add_movie_is_vip(cb: CallbackQuery, state: FSMContext, session: As
         "movie_type": "film",
         "title_original": data["title"],
         "title": data["title"],
-        "description": data["description"],
-        "poster_file_id": data["poster_file_id"],
-        "file_id": data["file_id"],
-        "is_vip": is_vip,
+        "description": None,
+        "poster_file_id": None,
+        "file_id": file_id,
+        "is_vip": False,
     }
 
     # If database channel is set, upload video there to keep message_id copy
@@ -190,72 +158,26 @@ async def adm_add_movie_is_vip(cb: CallbackQuery, state: FSMContext, session: As
         try:
             db_msg = await bot.send_video(
                 chat_id=settings.DATABASE_CHANNEL_ID,
-                video=data["file_id"],
-                caption=f"🎬 {data['title']}\n📌 Kod: {code}\n💎 VIP: {'Ha' if is_vip else 'Yoq'}"
+                video=file_id,
+                caption=f"🎬 {data['title']}\n📌 Kod: {code}"
             )
             database_message_id = db_msg.message_id
         except Exception as e:
-            await cb.message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
+            await message.answer(f"⚠️ Bazaga (kanalga) saqlashda xatolik: {e}")
 
     movie_data["database_message_id"] = database_message_id
 
     movie = await movie_svc.create_movie(movie_data)
 
-    await cb.message.edit_text(
+    await message.answer(
         f"✅ <b>Kino muvaffaqiyatli saqlandi!</b>\n\n"
         f"🎬 Nomi: <b>{movie.title}</b>\n"
-        f"📌 Kod: <code>{code}</code>\n"
-        f"💎 VIP: <b>{'Ha' if is_vip else 'Yoq'}</b>",
+        f"📌 Kod: <code>{code}</code>",
         parse_mode="HTML",
         reply_markup=admin_main_kb(),
     )
-    await cb.answer()
 
 
-# ─── Add Serial ───────────────────────────────────────────────────────────────
-
-@router.callback_query(F.data == "adm_add_serial")
-async def adm_add_serial_start(cb: CallbackQuery, state: FSMContext):
-    await state.set_state(AddSerialState.title)
-    await cb.message.edit_text(
-        "📝 Serial nomini kiriting:",
-        reply_markup=admin_back_kb(),
-    )
-    await cb.answer()
-
-
-@router.message(AddSerialState.title)
-async def adm_serial_title(message: Message, state: FSMContext):
-    await state.update_data(title=message.text.strip())
-    await state.set_state(AddSerialState.channel_link)
-    await message.answer("🔗 Serial qismlari joylashgan kanal havolasini (linkini) kiriting:")
-
-
-@router.message(AddSerialState.channel_link)
-async def adm_serial_link(message: Message, state: FSMContext, session: AsyncSession):
-    link = message.text.strip()
-    data = await state.get_data()
-    
-    movie_svc = MovieService(session)
-    code = await movie_svc.get_next_movie_code()
-    movie_data = {
-        "code": code,
-        "movie_type": "serial",
-        "title_original": data.get("title"),
-        "title": data.get("title"),
-        "serial_link": link,
-    }
-    
-    await movie_svc.create_movie(movie_data)
-    await state.clear()
-    
-    await message.answer(
-        f"✅ <b>Serial muvaffaqiyatli saqlandi!</b>\n"
-        f"📌 Kod: <code>{code}</code>\n"
-        f"🔗 Kanal havolasi: {link}",
-        parse_mode="HTML",
-        reply_markup=admin_main_kb(),
-    )
 
 
 @router.callback_query(F.data == "adm_cancel")

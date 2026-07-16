@@ -138,3 +138,17 @@ async def open_movie_from_list(cb: CallbackQuery, session: AsyncSession, bot: Bo
     from bot.handlers.user.start import deliver_movie
     await deliver_movie(cb.message, movie, user, lang, session, bot)
     await cb.answer()
+
+
+@router.message(F.text)
+async def auto_search_by_code(message: Message, session: AsyncSession, bot: Bot):
+    query = message.text.strip()
+    if query.isdigit():
+        movie_svc = MovieService(session)
+        movie = await movie_svc.search_by_code(query)
+        if movie:
+            user_svc = UserService(session)
+            user = await user_svc.get(message.from_user.id)
+            lang = user.language if user else "uz"
+            from bot.handlers.user.start import deliver_movie
+            await deliver_movie(message, movie, user, lang, session, bot)

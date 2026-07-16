@@ -39,8 +39,7 @@ TRANSLATIONS: Dict[str, str] = {
 
     # ─── Errors / Delivery ───────────────────────────────────────────────────
     "movie_not_found": "⚠️ Kino topilmadi.",
-    "movie_no_versions": "⚠️ Ushbu kino yuklanmagan yoki unda fayl mavjud emas.",
-    "choose_version": "📺 Sifatni tanlang:",
+    "movie_not_uploaded": "⚠️ Ushbu kino yuklanmagan yoki unda fayl mavjud emas.",
     "vip_required": "💎 Ushbu kinoni ko'rish uchun VIP obuna bo'lishingiz kerak.",
     "download_limit": "⚠️ Kunlik yuklab olish limitiga yetdingiz. Ko'proq yuklab olish uchun VIP obuna bo'ling.",
 

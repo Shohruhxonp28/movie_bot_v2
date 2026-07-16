@@ -77,7 +77,7 @@ class Movie(Base):
     trailer_type: Mapped[str] = mapped_column(String(10), default="none")
     trailer_file_id: Mapped[Optional[str]] = mapped_column(String(256))
     trailer_url: Mapped[Optional[str]] = mapped_column(String(512))
-    serial_link: Mapped[Optional[str]] = mapped_column(String(512))
+
 
     public_post_message_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     public_posted_at: Mapped[Optional[datetime]] = mapped_column(DateTime)

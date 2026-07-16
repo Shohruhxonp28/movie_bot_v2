@@ -178,13 +178,7 @@ async def deliver_movie(
         )
         return
 
-    # Download limit check
-    if not await user_svc.check_download_limit(user.id):
-        await message.answer(
-            _("download_limit", lang),
-            reply_markup=vip_required_kb(),
-        )
-        return
+
 
     await movie_svc.increment_views(movie.id)
 

@@ -60,24 +60,7 @@ class UserService:
 
     async def check_download_limit(self, user_id: int) -> bool:
         """Returns True if user can still download today."""
-        user = await self.get(user_id)
-        if not user:
-            return False
-
-        if user.is_vip and (not user.vip_until or user.vip_until > datetime.now()):
-            return True  # VIP has no limit
-
-        today = date.today()
-        last_date = user.last_download_date.date() if user.last_download_date else None
-
-        if last_date != today:
-            # Reset counter
-            user.daily_downloads = 0
-            user.last_download_date = datetime.now()
-            await self.session.commit()
-
-        limit = settings.DAILY_DOWNLOAD_LIMIT
-        return user.daily_downloads < limit
+        return True
 
     async def increment_downloads(self, user_id: int):
         user = await self.get(user_id)
